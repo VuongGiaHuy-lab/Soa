@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from .database import Base, engine, SessionLocal
-from .config import settings  # Import settings mới
+from .config import settings
 from .auth import get_password_hash
 from .routers import auth as auth_router
 from .routers import services as services_router
@@ -22,7 +22,6 @@ Base.metadata.create_all(bind=engine)
 def seed_owner():
     from .models import User, Role, Stylist
     with SessionLocal() as db:
-        # Sử dụng settings thay vì os.getenv
         admin_email = settings.ADMIN_EMAIL
         admin_password = settings.ADMIN_PASSWORD
         
@@ -37,7 +36,6 @@ def seed_owner():
             db.add(user)
             db.commit()
         else:
-            # Update password/role if needed based on config
             user.hashed_password = get_password_hash(admin_password)
             user.role = Role.OWNER.value
             db.commit()
@@ -64,9 +62,12 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+# --- SỬA ĐỔI QUAN TRỌNG Ở ĐÂY ---
 @app.get("/")
 def root():
-    return RedirectResponse(url="/auth")
+    # Trả về trang chủ thay vì redirect
+    return FileResponse("frontend/index.html")
+# --------------------------------
 
 # Frontend routes
 @app.get("/auth")
@@ -93,7 +94,6 @@ def page_admin():
 def page_forgot_password():
     return FileResponse("frontend/forgot-password.html")
 
-# Thêm route cho trang reset password mới
 @app.get("/reset-password")
 def page_reset_password():
     return FileResponse("frontend/reset-password.html")

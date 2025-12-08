@@ -5,203 +5,147 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Salon Booking</title>
   <link rel="stylesheet" href="/static/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <header class="site-header">
     <div class="container">
-      <h1 class="brand">Salon Booking</h1>
+      <a href="#home" class="brand">✨ Salon Luxury</a>
       <nav class="nav">
         <a href="#home" data-view>Home</a>
-        <a href="#auth" data-view>Auth</a>
-        <a href="#browse" data-view>Browse</a>
-        <a href="#booking" data-view>Booking</a>
-        <a href="#my-bookings" data-view onclick="loadMyBookings()">My Bookings</a>
+        <a href="#browse" data-view>Services</a>
+        <a href="#booking" data-view>Book Now</a>
+        <a href="#my-bookings" data-view onclick="loadMyBookings()">My History</a>
         <a href="#owner" data-view>Owner</a>
       </nav>
     </div>
   </header>
 
   <main class="container">
+    <div id="toast"></div>
+
     <section id="home" class="view active">
-      <h2>Welcome to Salon Booking</h2>
-      <p>Please login to manage your account or continue as a guest to book quickly.</p>
-      
-      <div class="grid-two" style="margin-bottom: 20px;">
-          <div class="card">
-              <h3>Member</h3>
-              <p>Login to view history and manage bookings.</p>
-              <button onclick="document.querySelector('a[href=\'#auth\']').click()">Login / Register</button>
-          </div>
-          <div class="card">
-              <h3>Guest</h3>
-              <p>Book a service instantly without an account.</p>
-              <button onclick="enableGuestMode()">Continue as Guest</button>
-          </div>
+      <div class="text-center" style="padding: 40px 0;">
+        <h1 style="font-size: 2.5rem; margin-bottom: 10px; color: var(--primary);">Welcome to Salon Luxury</h1>
+        <p class="text-muted">Experience premium styling and seamless booking.</p>
       </div>
 
-      <form class="form grid" style="border-top: 1px solid #eee; padding-top: 10px;">
-        <label>API Base URL</label>
-        <input id="apiBase" value="http://localhost:8000" />
-        <div id="status" class="status">Not logged in</div>
-      </form>
-    </section>
-
-    <section id="auth" class="view">
-      <h2>Authentication</h2>
       <div class="grid-two">
-        <form class="card" onsubmit="register(event)">
-          <h3>Register</h3>
-          <label>Email</label>
-          <input id="regEmail" type="email" required />
-          <label>Full Name</label>
-          <input id="regName" />
-          <label>Password</label>
-          <input id="regPass" type="password" minlength="8" required />
-          <button type="submit">Register</button>
-        </form>
-
-        <form class="card" onsubmit="login(event)">
-          <h3>Login</h3>
-          <label>Email</label>
-          <input id="loginEmail" type="email" required />
-          <label>Password</label>
-          <input id="loginPass" type="password" required />
-          <button type="submit">Login</button>
-          <p style="margin-top:10px; font-size: 0.9em;">
-            <a href="/forgot-password">Forgot Password?</a>
-          </p>
-        </form>
+        <div class="card text-center" style="border-top: 4px solid var(--primary);">
+          <h3>Member Access</h3>
+          <p class="text-muted" style="margin-bottom: 20px;">Manage your appointments and view history.</p>
+          <a href="/auth" class="button" style="text-decoration:none;"><button style="width:100%">Login / Register</button></a>
+        </div>
+        <div class="card text-center" style="border-top: 4px solid var(--success);">
+          <h3>Quick Booking</h3>
+          <p class="text-muted" style="margin-bottom: 20px;">Book an appointment instantly without an account.</p>
+          <button onclick="enableGuestMode()" class="secondary" style="width:100%">Continue as Guest</button>
+        </div>
+      </div>
+      
+      <div style="margin-top: 40px; text-align: center;">
+        <input id="apiBase" type="hidden" value="http://localhost:8000" />
+        <div id="status" class="badge pending" style="display:inline-block;">Checking status...</div>
       </div>
     </section>
 
     <section id="browse" class="view">
-      <h2>Browse</h2>
       <div class="grid-two">
         <div class="card">
-          <div class="card-actions">
-            <button onclick="listServices()">List Services</button>
-          </div>
-          <pre id="servicesList" class="output"></pre>
+          <h3>Our Services</h3>
+          <div class="card-actions"><button class="secondary" onclick="listServices()">Refresh List</button></div>
+          <div id="servicesList" class="text-muted">Loading services...</div>
         </div>
         <div class="card">
-          <div class="card-actions">
-            <button onclick="listStylists()">List Stylists</button>
-          </div>
-          <pre id="stylistsList" class="output"></pre>
+          <h3>Our Stylists</h3>
+          <div class="card-actions"><button class="secondary" onclick="listStylists()">Refresh List</button></div>
+          <div id="stylistsList" class="stylist-cards">Loading stylists...</div>
         </div>
       </div>
     </section>
 
     <section id="booking" class="view">
-      <h2>Booking <span id="bookingModeBadge" style="font-size:0.5em; background:#eee; padding:2px 5px; border-radius:4px; vertical-align: middle;"></span></h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h2>Make an Appointment</h2>
+        <span id="bookingModeBadge" class="badge success" style="display:none;">Guest Mode</span>
+      </div>
+
       <div class="grid-two">
         <form class="card" onsubmit="checkAvailability(event)">
-          <h3>1. Check Availability</h3>
-          <label>Service ID</label>
-          <input id="availServiceId" type="number" required />
-          <label>Date (YYYY-MM-DD)</label>
+          <h3>1. Find Availability</h3>
+          <div class="grid-two">
+            <div>
+                <label>Service ID</label>
+                <input id="availServiceId" type="number" required placeholder="e.g. 1" />
+            </div>
+            <div>
+                <label>Stylist ID</label>
+                <input id="availStylistId" type="number" required placeholder="e.g. 1" />
+            </div>
+          </div>
+          <label>Date</label>
           <input id="availDate" type="date" required />
-          <label>Stylist ID (required)</label>
-          <input id="availStylistId" type="number" required />
-          <button type="submit">Check</button>
-          <pre id="availOut" class="output"></pre>
+          <button type="submit" class="mt-4" style="width:100%">Check Slots</button>
+          <div id="availOut" style="margin-top:10px; font-size:0.9rem;"></div>
         </form>
 
         <form class="card" onsubmit="handleBookingSubmit(event)">
-          <h3>2. Create Booking</h3>
-          <label>Service ID</label>
-          <input id="bkServiceId" type="number" required />
-          <label>Stylist ID</label>
-          <input id="bkStylistId" type="number" required />
-          <label>Start Time (ISO)</label>
-          <input id="bkStart" placeholder="2025-12-09T10:00:00" required />
+          <h3>2. Confirm Details</h3>
+          <label>Selected Start Time</label>
+          <input id="bkStart" placeholder="YYYY-MM-DDTHH:MM:SS" required readonly style="background:#f9fafb; cursor: not-allowed;" />
           
-          <div id="guestFields" style="display:none; margin-top:10px; border-top:1px solid #eee; padding-top:10px; background: #f9fafb; padding: 10px; border-radius: 4px;">
-              <label style="color: #4f46e5;">Guest Name</label>
+          <input id="bkServiceId" type="hidden" />
+          <input id="bkStylistId" type="hidden" />
+
+          <div id="guestFields" style="display:none; background:#f0f9ff; padding:16px; border-radius:var(--radius); margin-top:16px; border:1px solid #bae6fd;">
+              <h4 style="margin-bottom:10px; color:#0369a1;">Guest Information</h4>
+              <label>Full Name</label>
               <input id="bkGuestName" placeholder="Your Name" />
-              <label style="color: #4f46e5;">Guest Email</label>
-              <input id="bkGuestEmail" type="email" placeholder="email@example.com" />
+              <label>Email Address</label>
+              <input id="bkGuestEmail" type="email" placeholder="name@example.com" />
           </div>
 
-          <button type="submit" style="margin-top: 15px;">Book Now</button>
-          <pre id="bkOut" class="output"></pre>
+          <button type="submit" class="mt-4" style="width:100%; background-color: var(--success);">Confirm Booking</button>
+          <pre id="bkOut" style="display:none;"></pre>
         </form>
       </div>
     </section>
 
     <section id="my-bookings" class="view">
-      <h2>My Bookings</h2>
+      <h2>My Booking History</h2>
       <div class="card">
         <div class="card-actions">
-          <button onclick="loadMyBookings()">Refresh List</button>
+          <button class="secondary" onclick="loadMyBookings()">Refresh</button>
         </div>
-        <div id="myBookingsList" class="output"></div>
+        <div id="myBookingsList" style="overflow-x: auto;">Please login to view bookings.</div>
       </div>
       
-      <div class="grid-two" style="margin-top: 1rem;">
-        <form class="card" onsubmit="payBooking(event)">
-            <h3>Pay for Booking</h3>
-            <label>Booking ID</label>
-            <input id="payBookingId" type="number" required />
-            <label>Amount</label>
-            <input id="payAmount" type="number" value="20" required />
-            <div class="grid-two">
-              <div>
-                <label>Card Number</label>
-                <input id="payCard" value="4242424242424242" required />
-              </div>
-              <div>
-                <label>CVV</label>
-                <input id="payCVV" value="123" required />
-              </div>
-            </div>
-            <div class="grid-two">
-              <div>
-                <label>Expiry Month</label>
-                <input id="payMonth" type="number" value="12" required />
-              </div>
-              <div>
-                <label>Expiry Year</label>
-                <input id="payYear" type="number" value="2099" required />
-              </div>
-            </div>
-            <label>Cardholder Name</label>
-            <input id="payName" value="Alice" required />
-            <button type="submit">Pay Now</button>
-            <pre id="payOut" class="output"></pre>
+      <div class="card mt-4">
+        <h3>Secure Payment</h3>
+        <p class="text-muted">Enter booking ID to pay securely.</p>
+        <form onsubmit="payBooking(event)" class="grid-three" style="align-items:end;">
+            <div><label>Booking ID</label><input id="payBookingId" type="number" required /></div>
+            <div><label>Amount ($)</label><input id="payAmount" type="number" value="20" required /></div>
+            <div><button type="submit" style="width:100%">Pay Now</button></div>
         </form>
+        <div style="display:none;">
+            <input id="payCard" value="4242424242424242">
+            <input id="payCVV" value="123">
+            <input id="payMonth" value="12"><input id="payYear" value="2099">
+            <input id="payName" value="Alice">
+        </div>
+        <div id="payOut" class="mt-4"></div>
       </div>
     </section>
 
     <section id="owner" class="view">
-      <h2>Owner Panel</h2>
-      <form class="card" onsubmit="createService(event)">
-        <h3>Create Service</h3>
-        <label>Name</label>
-        <input id="svcName" value="Basic Cut" required />
-        <label>Description</label>
-        <input id="svcDesc" value="Haircut" />
-        <div class="grid-two">
-          <div>
-            <label>Price</label>
-            <input id="svcPrice" type="number" value="20" required />
-          </div>
-          <div>
-            <label>Duration (minutes)</label>
-            <input id="svcDur" type="number" value="60" required />
-          </div>
-        </div>
-        <button type="submit">Create Service</button>
-        <pre id="svcOut" class="output"></pre>
-      </form>
+      <div class="text-center" style="padding: 40px;">
+        <h2>Owner Dashboard</h2>
+        <p class="text-muted">Advanced management tools.</p>
+        <a href="/admin" class="button" style="text-decoration:none;"><button>Go to Admin Panel</button></a>
+      </div>
     </section>
   </main>
-
-  <footer class="site-footer">
-    <div class="container">
-      <small>&copy; 2025 Salon Booking</small>
-    </div>
-  </footer>
 
   <script src="/static/app.js"></script>
 </body>

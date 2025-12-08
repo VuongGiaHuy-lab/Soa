@@ -5,33 +5,48 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Register - Salon Booking</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
+<body style="background-color: #f8fafc;">
   <header class="site-header">
     <div class="container">
-      <h1 class="brand">Salon Booking</h1>
+      <a href="/" class="brand">✨ Salon Luxury</a>
       <nav class="nav">
         <a href="/">Home</a>
-        <a href="/auth">Auth</a>
-        <a href="/services">Services</a>
-        <a href="/book">Booking</a>
-        <a href="/admin">Owner</a>
+        <a href="/auth">Login</a>
       </nav>
     </div>
   </header>
+
   <main class="container">
-    <h2>Register</h2>
-    <form class="card" onsubmit="register(event)">
-      <label>Email</label>
-      <input id="regEmail" type="email" required>
-      <label>Full Name</label>
-      <input id="regName">
-      <label>Password</label>
-      <input id="regPass" type="password" minlength="8" required>
-      <button type="submit">Create Account</button>
-      <pre id="regOut" class="output"></pre>
-    </form>
+    <div id="toast"></div>
+
+    <div style="max-width: 500px; margin: 40px auto;">
+      <div class="card" style="border-top: 4px solid var(--success);">
+        <h2 class="text-center" style="margin-bottom: 10px;">Join Us Today</h2>
+        <p class="text-center text-muted" style="margin-bottom: 30px;">Create an account to manage your bookings easily.</p>
+        
+        <form onsubmit="register(event)">
+          <label>Full Name</label>
+          <input id="regName" placeholder="John Doe" required>
+          
+          <label>Email Address</label>
+          <input id="regEmail" type="email" required placeholder="john@example.com">
+          
+          <label>Password</label>
+          <input id="regPass" type="password" minlength="8" required placeholder="Min 8 characters">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Must contain at least 8 characters.</p>
+          
+          <button type="submit" class="mt-4" style="width:100%; padding: 12px; background-color: var(--success);">Create Account</button>
+        </form>
+
+        <p class="text-center mt-4 text-muted">
+          Already have an account? <a href="/auth" style="color:var(--primary); font-weight:600;">Sign In</a>
+        </p>
+      </div>
+    </div>
   </main>
-  <script src="/static/register.js"></script>
+  <input type="hidden" id="apiBase" value="http://localhost:8000">
+  <script src="/static/auth.js"></script>
 </body>
 </html>

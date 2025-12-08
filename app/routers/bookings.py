@@ -18,9 +18,11 @@ def get_service(db: Session, service_id: int) -> models.Service:
     return svc
 
 def is_overlapping(db: Session, stylist_id: int, start: datetime, end: datetime, exclude_booking_id: Optional[int] = None) -> bool:
+    # Logic: Các lịch PENDING và CONFIRMED đều được coi là đã chiếm chỗ
+    # Để tránh việc người khác đặt chồng lên khi người trước chưa kịp thanh toán
     q = db.query(models.Booking).filter(
         models.Booking.stylist_id == stylist_id,
-        models.Booking.status != models.BookingStatus.CANCELLED.value,
+        models.Booking.status.in_([models.BookingStatus.CONFIRMED.value, models.BookingStatus.PENDING.value]),
         models.Booking.start_time < end,
         models.Booking.end_time > start,
     )
@@ -47,95 +49,113 @@ def availability(service_id: int, date: date_type, stylist_id: int = Query(...),
         current += timedelta(minutes=60)
     return slots
 
+# --- CREATE BOOKING (Thành viên) ---
 @router.post("/", response_model=schemas.BookingOut)
 def create_booking(payload: schemas.BookingCreate, user=Depends(get_current_user), db: Session = Depends(get_db)):
-    svc = get_service(db, payload.service_id)
-    start = payload.start_time
-    end = start + timedelta(minutes=svc.duration_minutes)
+    try:
+        svc = get_service(db, payload.service_id)
+        start = payload.start_time
+        end = start + timedelta(minutes=svc.duration_minutes)
 
-    if not payload.stylist_id:
-        raise HTTPException(status_code=400, detail="Stylist selection is required")
+        if not payload.stylist_id:
+            raise HTTPException(status_code=400, detail="Stylist selection is required")
 
-    if is_overlapping(db, payload.stylist_id, start, end):
-        raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
+        # Transaction Check: Kiểm tra trùng lặp ngay trước khi insert
+        if is_overlapping(db, payload.stylist_id, start, end):
+            raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
 
-    booking = models.Booking(
-        customer_id=user.id,
-        service_id=svc.id,
-        stylist_id=payload.stylist_id,
-        start_time=start,
-        end_time=end,
-        status=models.BookingStatus.CONFIRMED.value,
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-    return booking
+        booking = models.Booking(
+            customer_id=user.id,
+            service_id=svc.id,
+            stylist_id=payload.stylist_id,
+            start_time=start,
+            end_time=end,
+            status=models.BookingStatus.PENDING.value, # <--- QUAN TRỌNG: Chỉ là PENDING
+        )
+        db.add(booking)
+        db.commit() # Commit transaction tạo booking
+        db.refresh(booking)
+        return booking
+        
+    except Exception as e:
+        db.rollback() # Rollback nếu có lỗi
+        raise e
 
-# --- Endpoint Guest Booking (MỚI) ---
+# --- CREATE GUEST BOOKING (Khách vãng lai) ---
 @router.post("/guest", response_model=schemas.BookingOut)
 def create_guest_booking(payload: schemas.WalkinBookingCreate, db: Session = Depends(get_db)):
-    svc = get_service(db, payload.service_id)
-    start = payload.start_time
-    end = start + timedelta(minutes=svc.duration_minutes)
+    try:
+        svc = get_service(db, payload.service_id)
+        start = payload.start_time
+        end = start + timedelta(minutes=svc.duration_minutes)
 
-    # Validate Stylist & Working Hours
-    stylist = db.get(models.Stylist, payload.stylist_id)
-    if not stylist:
-         raise HTTPException(status_code=404, detail="Stylist not found")
-    
-    if not (stylist.start_hour <= start.hour < stylist.end_hour):
-         raise HTTPException(status_code=400, detail="Stylist is not working at this time")
+        stylist = db.get(models.Stylist, payload.stylist_id)
+        if not stylist:
+             raise HTTPException(status_code=404, detail="Stylist not found")
+        
+        if not (stylist.start_hour <= start.hour < stylist.end_hour):
+             raise HTTPException(status_code=400, detail="Stylist is not working at this time")
 
-    if is_overlapping(db, payload.stylist_id, start, end):
-        raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
+        if is_overlapping(db, payload.stylist_id, start, end):
+            raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
 
-    booking = models.Booking(
-        customer_id=None, 
-        customer_name=payload.customer_name,
-        customer_email=payload.customer_email,
-        service_id=svc.id,
-        stylist_id=payload.stylist_id,
-        start_time=start,
-        end_time=end,
-        status=models.BookingStatus.CONFIRMED.value,
-        is_walkin=False,
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-    
-    if payload.customer_email:
-        send_email(payload.customer_email, "Booking Confirmed", f"Your booking ID is #{booking.id}")
+        booking = models.Booking(
+            customer_id=None, 
+            customer_name=payload.customer_name,
+            customer_email=payload.customer_email,
+            service_id=svc.id,
+            stylist_id=payload.stylist_id,
+            start_time=start,
+            end_time=end,
+            status=models.BookingStatus.PENDING.value, # <--- QUAN TRỌNG: PENDING
+            is_walkin=False,
+        )
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
+        
+        # Gửi email nhắc thanh toán
+        if payload.customer_email:
+            send_email(
+                payload.customer_email, 
+                "Booking Reserved - Payment Required", 
+                f"Your booking #{booking.id} is reserved. Please complete payment to confirm."
+            )
 
-    return booking
+        return booking
+    except Exception as e:
+        db.rollback()
+        raise e
 
-# --- Endpoint Create Walk-in (Owner only) ---
+# --- WALK-IN (Owner tạo - Được phép Confirm luôn vì thu tiền mặt tại quầy) ---
 @router.post("/walkin", response_model=schemas.BookingOut, dependencies=[Depends(RequireOwner)])
 def create_walkin(payload: schemas.WalkinBookingCreate, db: Session = Depends(get_db)):
-    # Tương tự Guest Booking nhưng đánh dấu is_walkin=True
-    svc = get_service(db, payload.service_id)
-    start = payload.start_time
-    end = start + timedelta(minutes=svc.duration_minutes)
-    
-    if is_overlapping(db, payload.stylist_id, start, end):
-        raise HTTPException(status_code=409, detail="Stylist is unavailable")
+    try:
+        svc = get_service(db, payload.service_id)
+        start = payload.start_time
+        end = start + timedelta(minutes=svc.duration_minutes)
         
-    booking = models.Booking(
-        customer_id=None,
-        customer_name=payload.customer_name,
-        customer_email=payload.customer_email,
-        service_id=svc.id,
-        stylist_id=payload.stylist_id,
-        start_time=start,
-        end_time=end,
-        status=models.BookingStatus.CONFIRMED.value,
-        is_walkin=True, # Đặt tại quầy
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-    return booking
+        if is_overlapping(db, payload.stylist_id, start, end):
+            raise HTTPException(status_code=409, detail="Stylist is unavailable")
+            
+        booking = models.Booking(
+            customer_id=None,
+            customer_name=payload.customer_name,
+            customer_email=payload.customer_email,
+            service_id=svc.id,
+            stylist_id=payload.stylist_id,
+            start_time=start,
+            end_time=end,
+            status=models.BookingStatus.CONFIRMED.value, # Walk-in tại quầy được confirm luôn
+            is_walkin=True, 
+        )
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
+        return booking
+    except Exception as e:
+        db.rollback()
+        raise e
 
 @router.put("/{booking_id}/cancel", response_model=schemas.BookingOut)
 def cancel_booking(booking_id: int, user=Depends(get_current_user), db: Session = Depends(get_db)):
@@ -151,25 +171,27 @@ def cancel_booking(booking_id: int, user=Depends(get_current_user), db: Session 
     db.refresh(booking)
     return booking
 
-# --- Endpoint Delete Booking (MỚI - Chỉ Owner) ---
 @router.delete("/{booking_id}", dependencies=[Depends(RequireOwner)])
 def delete_booking(booking_id: int, db: Session = Depends(get_db)):
-    booking = db.query(models.Booking).get(booking_id)
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found")
-    
-    # Xóa thanh toán liên quan
-    db.query(models.Payment).filter(models.Payment.booking_id == booking.id).delete()
-    
-    db.delete(booking)
-    db.commit()
-    return {"ok": True}
+    try:
+        booking = db.query(models.Booking).get(booking_id)
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        
+        db.query(models.Payment).filter(models.Payment.booking_id == booking.id).delete()
+        db.delete(booking)
+        db.commit()
+        return {"ok": True}
+    except Exception as e:
+        db.rollback()
+        raise e
 
 @router.get("/me", response_model=List[schemas.BookingOut])
 def my_bookings(user=Depends(get_current_user), db: Session = Depends(get_db)):
     q = db.query(models.Booking).filter(models.Booking.customer_id == user.id)
     return q.order_by(models.Booking.start_time.desc()).all()
 
+# --- PAY BOOKING (Xử lý Transaction Thanh toán) ---
 @router.post("/{booking_id}/pay", response_model=schemas.PaymentOut)
 def pay_booking(
     booking_id: int, 
@@ -178,44 +200,71 @@ def pay_booking(
     user=Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    booking = db.query(models.Booking).get(booking_id)
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found")
-    if booking.customer_id and booking.customer_id != user.id:
-        raise HTTPException(status_code=403, detail="Not yours")
-    if booking.status == models.BookingStatus.CANCELLED.value:
-        raise HTTPException(status_code=400, detail="Booking cancelled")
+    try:
+        booking = db.query(models.Booking).get(booking_id)
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        
+        # Kiểm tra quyền: Owner được thanh toán hộ, Customer chỉ thanh toán của mình
+        if user.role != models.Role.OWNER.value:
+            if booking.customer_id and booking.customer_id != user.id:
+                raise HTTPException(status_code=403, detail="Not yours")
 
-    if not luhn_checksum(payload.card_number) or not validate_expiry(payload.expiry_month, payload.expiry_year):
-        raise HTTPException(status_code=400, detail="Invalid payment details")
+        if booking.status == models.BookingStatus.CANCELLED.value:
+            raise HTTPException(status_code=400, detail="Booking cancelled")
+        
+        # Nếu đã confirm rồi thì không cần thanh toán lại (trừ khi muốn thanh toán thêm - logic nâng cao)
+        if booking.status == models.BookingStatus.CONFIRMED.value:
+             # Kiểm tra xem đã có payment thành công chưa
+             existing_pay = db.query(models.Payment).filter(
+                 models.Payment.booking_id == booking.id, 
+                 models.Payment.status == models.PaymentStatus.SUCCESS.value
+             ).first()
+             if existing_pay:
+                 return existing_pay
 
-    amount = db.query(models.Service).get(booking.service_id).price
-    payment = db.query(models.Payment).filter(models.Payment.booking_id == booking.id).first()
-    if not payment:
-        payment = models.Payment(booking_id=booking.id, amount=amount)
-        db.add(payment)
-        db.flush()
+        # Validate thẻ (Giả lập)
+        if not luhn_checksum(payload.card_number) or not validate_expiry(payload.expiry_month, payload.expiry_year):
+            raise HTTPException(status_code=400, detail="Invalid payment details")
 
-    payment.status = models.PaymentStatus.SUCCESS.value
-    payment.masked_details = mask_card(payload.card_number)
-    payment.provider = "mock"
-    db.commit()
-    db.refresh(payment)
+        amount = db.query(models.Service).get(booking.service_id).price
+        
+        # 1. Tạo bản ghi Payment
+        payment = db.query(models.Payment).filter(models.Payment.booking_id == booking.id).first()
+        if not payment:
+            payment = models.Payment(booking_id=booking.id, amount=amount)
+            db.add(payment)
+            db.flush() # Flush để lấy ID payment nhưng chưa commit
 
-    email_to = user.email if booking.customer_id else booking.customer_email
-    if email_to:
-        body_content = (
-            f"Thank you for your payment.\n\n"
-            f"Booking ID: {booking.id}\n"
-            f"Service ID: {booking.service_id}\n"
-            f"Amount: ${amount:.2f}\n"
-            f"Paid with: {payment.masked_details}\n"
-        )
-        background_tasks.add_task(
-            send_email,
-            to_email=email_to,
-            subject="Salon Booking Payment Receipt",
-            body=body_content
-        )
+        # 2. Cập nhật trạng thái Payment
+        payment.status = models.PaymentStatus.SUCCESS.value
+        payment.masked_details = mask_card(payload.card_number)
+        payment.provider = "mock"
+        
+        # 3. Cập nhật trạng thái Booking -> CONFIRMED
+        booking.status = models.BookingStatus.CONFIRMED.value
 
-    return payment
+        # 4. Commit Transaction (Cả Payment và Booking cùng lúc)
+        db.commit()
+        db.refresh(payment)
+
+        # Gửi email receipt
+        email_to = user.email if booking.customer_id else booking.customer_email
+        if email_to:
+            body_content = (
+                f"Payment Successful!\n\n"
+                f"Booking ID: {booking.id}\n"
+                f"Status: CONFIRMED\n"
+                f"Amount: ${amount:.2f}\n"
+            )
+            background_tasks.add_task(
+                send_email,
+                to_email=email_to,
+                subject="Payment Receipt & Booking Confirmation",
+                body=body_content
+            )
+
+        return payment
+    except Exception as e:
+        db.rollback() # Rollback toàn bộ nếu lỗi
+        raise e
