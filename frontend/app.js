@@ -1,4 +1,4 @@
-// SPA navigation
+// --- 1. SPA NAVIGATION ---
 (function(){
   const links = document.querySelectorAll('[data-view]');
   const views = document.querySelectorAll('.view');
@@ -12,27 +12,31 @@
         activate(id); 
     });
   });
+  // Default view
   activate('home');
 })();
 
+// --- 2. GLOBAL STATE & HELPERS ---
 let token = localStorage.getItem('token') || null;
-if(token) setStatus('Logged in (saved session)', true);
+let isGuestMode = false;
 
 function api() { return document.getElementById('apiBase').value.trim(); }
 
 function setStatus(text, ok=true){
   const el = document.getElementById('status');
-  el.textContent = text;
-  el.style.color = ok ? 'green' : 'red';
+  if(el) {
+      el.textContent = text;
+      el.style.color = ok ? 'green' : 'red';
+  }
 }
 
-// --- UTILS: Toast & Loading ---
+// Hiển thị Toast thông báo (Cần CSS trong styles.css)
 function showToast(message, type = 'success') {
   let toast = document.getElementById('toast');
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'toast';
-    toast.className = 'toast'; // CSS class in styles.css
+    toast.className = 'toast';
     document.body.appendChild(toast);
   }
   toast.textContent = message;
@@ -40,6 +44,7 @@ function showToast(message, type = 'success') {
   setTimeout(() => { toast.className = 'toast'; }, 3000);
 }
 
+// Hiệu ứng Loading cho nút bấm
 function setLoading(btn, isLoading, text="Processing...") {
     if(isLoading) {
         btn.dataset.originalText = btn.textContent;
@@ -51,7 +56,28 @@ function setLoading(btn, isLoading, text="Processing...") {
     }
 }
 
-// --- AUTH ---
+// Bật chế độ khách vãng lai
+function enableGuestMode() {
+    isGuestMode = true;
+    token = null; 
+    localStorage.removeItem('token');
+    setStatus('Guest Mode', true);
+    
+    // Hiện các trường nhập liệu cho Guest
+    const guestFields = document.getElementById('guestFields');
+    if(guestFields) guestFields.style.display = 'block';
+    
+    const badge = document.getElementById('bookingModeBadge');
+    if(badge) badge.textContent = "(Guest)";
+    
+    // Chuyển sang tab Booking
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('booking').classList.add('active');
+    
+    showToast("Welcome Guest! You can book now.", "success");
+}
+
+// --- 3. AUTHENTICATION ---
 async function register(evt){
   evt && evt.preventDefault();
   const btn = evt.target.querySelector('button');
@@ -66,11 +92,12 @@ async function register(evt){
           password: document.getElementById('regPass').value,
         }),
       });
-      const txt = await res.text();
       if(res.ok) {
           showToast("Registration successful! Please login.", "success");
+          // Clear form?
       } else {
-          showToast("Registration failed", "error");
+          const txt = await res.text();
+          showToast("Registration failed: " + txt, "error");
       }
   } catch(e) { showToast("Network error", "error"); }
   finally { setLoading(btn, false); }
@@ -93,6 +120,14 @@ async function login(evt){
         const json = JSON.parse(txt);
         token = json.access_token;
         localStorage.setItem('token', token);
+        
+        // Reset Guest Mode khi login thành công
+        isGuestMode = false;
+        const guestFields = document.getElementById('guestFields');
+        if(guestFields) guestFields.style.display = 'none';
+        const badge = document.getElementById('bookingModeBadge');
+        if(badge) badge.textContent = "";
+
         setStatus('Logged in', true);
         showToast("Login successful", "success");
       } else {
@@ -103,18 +138,24 @@ async function login(evt){
   finally { setLoading(btn, false); }
 }
 
-// --- SERVICES & STYLISTS ---
+// --- 4. BROWSE SERVICES & STYLISTS ---
 async function listServices(){
-  const res = await fetch(api()+"/services/");
-  document.getElementById('servicesList').textContent = await res.text();
+  try {
+      const res = await fetch(api()+"/services/");
+      const txt = await res.text();
+      document.getElementById('servicesList').textContent = txt;
+  } catch(e) { console.error(e); }
 }
 
 async function listStylists(){
-  const res = await fetch(api()+"/stylists/");
-  document.getElementById('stylistsList').textContent = await res.text();
+  try {
+      const res = await fetch(api()+"/stylists/");
+      const txt = await res.text();
+      document.getElementById('stylistsList').textContent = txt;
+  } catch(e) { console.error(e); }
 }
 
-// --- BOOKING ---
+// --- 5. BOOKING LOGIC ---
 async function checkAvailability(evt){
   evt && evt.preventDefault();
   const btn = evt.target.querySelector('button');
@@ -136,35 +177,85 @@ async function checkAvailability(evt){
   } finally { setLoading(btn, false); }
 }
 
-async function createBooking(evt){
-  evt && evt.preventDefault();
-  if(!token) return showToast("Please login first", "error");
-  
-  const btn = evt.target.querySelector('button');
-  setLoading(btn, true, "Booking...");
-
-  try {
-      const res = await fetch(api()+"/bookings/", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+token },
-        body: JSON.stringify({
-          service_id: parseInt(document.getElementById('bkServiceId').value),
-          stylist_id: parseInt(document.getElementById('bkStylistId').value),
-          start_time: document.getElementById('bkStart').value,
-        }),
-      });
-      const txt = await res.text();
-      document.getElementById('bkOut').textContent = txt;
-      if(res.ok) {
-          showToast("Booking created!", "success");
-          loadMyBookings(); // Reload list if open
-      } else {
-          showToast("Booking failed", "error");
-      }
-  } finally { setLoading(btn, false); }
+// Hàm xử lý chính khi bấm nút Book
+async function handleBookingSubmit(evt){
+    evt && evt.preventDefault();
+    if (isGuestMode) {
+        await createGuestBooking();
+    } else {
+        await createUserBooking();
+    }
 }
 
-// --- MY BOOKINGS & CANCEL ---
+async function createGuestBooking() {
+    const btn = document.querySelector('#booking button[type="submit"]');
+    setLoading(btn, true, "Booking as Guest...");
+    
+    const name = document.getElementById('bkGuestName').value;
+    const email = document.getElementById('bkGuestEmail').value;
+
+    if(!name || !email) {
+        showToast("Guest must provide Name and Email", "error");
+        setLoading(btn, false);
+        return;
+    }
+
+    try {
+        const payload = {
+            service_id: parseInt(document.getElementById('bkServiceId').value),
+            stylist_id: parseInt(document.getElementById('bkStylistId').value),
+            start_time: document.getElementById('bkStart').value,
+            customer_name: name,
+            customer_email: email
+        };
+
+        const res = await fetch(api()+"/bookings/guest", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        
+        const txt = await res.text();
+        document.getElementById('bkOut').textContent = txt;
+        
+        if(res.ok) showToast("Guest Booking Confirmed! Check email.", "success");
+        else showToast("Booking Failed", "error");
+
+    } catch(e) {
+        showToast("Network error", "error");
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+async function createUserBooking() {
+    if(!token) return showToast("Please login first or use Guest Mode", "error");
+    const btn = document.querySelector('#booking button[type="submit"]');
+    setLoading(btn, true, "Booking...");
+
+    try {
+        const res = await fetch(api()+"/bookings/", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+token },
+            body: JSON.stringify({
+                service_id: parseInt(document.getElementById('bkServiceId').value),
+                stylist_id: parseInt(document.getElementById('bkStylistId').value),
+                start_time: document.getElementById('bkStart').value,
+            }),
+        });
+        const txt = await res.text();
+        document.getElementById('bkOut').textContent = txt;
+        
+        if(res.ok) {
+            showToast("Booking created!", "success");
+            loadMyBookings(); // Tải lại danh sách nếu đang mở
+        } else {
+            showToast("Booking failed", "error");
+        }
+    } finally { setLoading(btn, false); }
+}
+
+// --- 6. MY BOOKINGS & CANCEL ---
 async function loadMyBookings(){
     if(!token) {
         document.getElementById('myBookingsList').innerHTML = '<p style="color:red">Please login to view bookings.</p>';
@@ -186,7 +277,6 @@ async function loadMyBookings(){
             return;
         }
 
-        // Render bảng booking
         const table = document.createElement('table');
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
@@ -194,7 +284,7 @@ async function loadMyBookings(){
             <tr style="background:#eee; text-align:left;">
                 <th style="padding:8px;">ID</th>
                 <th>Service</th>
-                <th>Start Time</th>
+                <th>Time</th>
                 <th>Status</th>
                 <th>Action</th>
             </tr>
@@ -217,7 +307,7 @@ async function loadMyBookings(){
                     ">${bk.status.toUpperCase()}</span>
                 </td>
                 <td>
-                    ${canCancel ? `<button onclick="cancelBooking(${bk.id})" style="background:#ef4444; padding:4px 8px; font-size:0.8em;">Cancel</button>` : '-'}
+                    ${canCancel ? `<button onclick="cancelBooking(${bk.id})" style="background:#ef4444; color:white; padding:4px 8px; font-size:0.8em; border:none; border-radius:4px; cursor:pointer;">Cancel</button>` : '-'}
                 </td>
             `;
             table.appendChild(tr);
@@ -229,7 +319,8 @@ async function loadMyBookings(){
     }
 }
 
-async function cancelBooking(id) {
+// Hàm Hủy Lịch (phải đặt ở global scope để nút trong HTML gọi được)
+window.cancelBooking = async function(id) {
     if(!confirm("Are you sure you want to cancel this booking?")) return;
     
     try {
@@ -239,7 +330,7 @@ async function cancelBooking(id) {
         });
         if(res.ok) {
             showToast("Booking cancelled", "success");
-            loadMyBookings(); // Reload list
+            loadMyBookings();
         } else {
             const txt = await res.text();
             showToast("Failed: " + txt, "error");
@@ -247,9 +338,9 @@ async function cancelBooking(id) {
     } catch(e) {
         showToast("Network error", "error");
     }
-}
+};
 
-// --- PAY ---
+// --- 7. PAYMENT ---
 async function payBooking(evt){
   evt && evt.preventDefault();
   const btn = evt.target.querySelector('button');
@@ -278,7 +369,7 @@ async function payBooking(evt){
   } finally { setLoading(btn, false); }
 }
 
-// --- OWNER ---
+// --- 8. OWNER PANEL ---
 async function createService(evt){
   evt && evt.preventDefault();
   const btn = evt.target.querySelector('button');
@@ -299,4 +390,9 @@ async function createService(evt){
       document.getElementById('svcOut').textContent = txt;
       if(res.ok) showToast("Service created", "success");
   } finally { setLoading(btn, false); }
+}
+
+// Khởi tạo trạng thái ban đầu nếu có token
+if(token) {
+    setStatus('Logged in (saved session)', true);
 }

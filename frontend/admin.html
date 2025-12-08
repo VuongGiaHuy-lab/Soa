@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Owner - Salon Booking</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .danger { background-color: #ef4444; color: white; }
+    .danger:hover { background-color: #dc2626; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f3f4f6; }
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -21,6 +28,9 @@
   </header>
   <main class="container">
     <h2>Owner Panel</h2>
+    
+    <div id="toast"></div>
+
     <div class="grid-two">
       <form class="card" onsubmit="createService(event)">
         <h3>Create Service</h3>
@@ -47,19 +57,28 @@
         <div class="card-actions">
           <button onclick="listUsers()">Refresh</button>
         </div>
-        <pre id="usersOut" class="output"></pre>
+        <pre id="usersOut" class="output" style="max-height: 200px;"></pre>
       </div>
     </div>
 
-    <div class="card">
-      <h3>All Bookings</h3>
+    <div class="card" style="margin-top: 16px;">
+        <h3>Manage Stylists</h3>
+        <p class="status">View and remove stylists.</p>
+        <div class="card-actions">
+            <button onclick="loadManageStylists()">Load Stylists</button>
+        </div>
+        <div id="manageStylistList" class="stylist-cards"></div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <h3>All Bookings (Manage)</h3>
       <div class="card-actions">
-        <button id="load-all-bookings">Load All Bookings</button>
+        <button id="load-all-bookings">Refresh Bookings</button>
       </div>
-      <pre id="allBookingsOut" class="output"></pre>
+      <div id="allBookingsTable" class="output" style="max-height: 400px; overflow: auto;"></div>
     </div>
 
-    <div class="grid-two">
+    <div class="grid-two" style="margin-top: 16px;">
       <form class="card" onsubmit="loadServices(event)">
         <h3>Walk-in: Step 1 - Choose Service</h3>
         <div class="card-actions">
@@ -77,7 +96,7 @@
       </form>
     </div>
 
-    <form class="card" onsubmit="createWalkin(event)">
+    <form class="card" onsubmit="createWalkin(event)" style="margin-top: 16px;">
       <h3>Walk-in: Step 3 - Date, Time & Customer Info</h3>
         <div class="grid-two">
           <div>
@@ -88,7 +107,7 @@
           <div class="slots-section">
             <div class="slots-header">
               <h3>Available Timeslots</h3>
-              <button id="walkin-load-slots" class="secondary">Load Slots</button>
+              <button id="walkin-load-slots" type="button" class="secondary">Load Slots</button>
             </div>
             <div id="walkin-slots" class="slot-grid"></div>
             <div id="walkin-selected-slot" class="muted"></div>

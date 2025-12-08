@@ -1,3 +1,4 @@
+# app/schemas.py
 from datetime import datetime, date, time
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
@@ -50,14 +51,23 @@ class StylistOut(BaseModel):
     id: int
     display_name: str
     bio: Optional[str] = None
+    start_hour: int  # <-- Mới thêm
+    end_hour: int    # <-- Mới thêm
     class Config:
         from_attributes = True
+
+# Class mới để update stylist
+class StylistUpdate(BaseModel):
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+    start_hour: Optional[int] = None
+    end_hour: Optional[int] = None
 
 # Booking
 class BookingCreate(BaseModel):
     service_id: int
-    stylist_id: Optional[int] = None  # auto-assign if None
-    start_time: datetime  # must be at start of slot
+    stylist_id: Optional[int] = None
+    start_time: datetime
 
 class WalkinBookingCreate(BaseModel):
     service_id: int
@@ -109,4 +119,3 @@ class PaymentOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-

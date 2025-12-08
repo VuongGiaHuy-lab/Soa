@@ -23,9 +23,23 @@
 
   <main class="container">
     <section id="home" class="view active">
-      <h2>Welcome</h2>
-      <p>Use the tabs above to register/login, browse services, and manage bookings.</p>
-      <form class="form grid">
+      <h2>Welcome to Salon Booking</h2>
+      <p>Please login to manage your account or continue as a guest to book quickly.</p>
+      
+      <div class="grid-two" style="margin-bottom: 20px;">
+          <div class="card">
+              <h3>Member</h3>
+              <p>Login to view history and manage bookings.</p>
+              <button onclick="document.querySelector('a[href=\'#auth\']').click()">Login / Register</button>
+          </div>
+          <div class="card">
+              <h3>Guest</h3>
+              <p>Book a service instantly without an account.</p>
+              <button onclick="enableGuestMode()">Continue as Guest</button>
+          </div>
+      </div>
+
+      <form class="form grid" style="border-top: 1px solid #eee; padding-top: 10px;">
         <label>API Base URL</label>
         <input id="apiBase" value="http://localhost:8000" />
         <div id="status" class="status">Not logged in</div>
@@ -79,7 +93,7 @@
     </section>
 
     <section id="booking" class="view">
-      <h2>Booking</h2>
+      <h2>Booking <span id="bookingModeBadge" style="font-size:0.5em; background:#eee; padding:2px 5px; border-radius:4px; vertical-align: middle;"></span></h2>
       <div class="grid-two">
         <form class="card" onsubmit="checkAvailability(event)">
           <h3>1. Check Availability</h3>
@@ -93,15 +107,23 @@
           <pre id="availOut" class="output"></pre>
         </form>
 
-        <form class="card" onsubmit="createBooking(event)">
+        <form class="card" onsubmit="handleBookingSubmit(event)">
           <h3>2. Create Booking</h3>
           <label>Service ID</label>
           <input id="bkServiceId" type="number" required />
           <label>Stylist ID</label>
           <input id="bkStylistId" type="number" required />
           <label>Start Time (ISO)</label>
-          <input id="bkStart" placeholder="2025-12-07T10:00:00" required />
-          <button type="submit">Book</button>
+          <input id="bkStart" placeholder="2025-12-09T10:00:00" required />
+          
+          <div id="guestFields" style="display:none; margin-top:10px; border-top:1px solid #eee; padding-top:10px; background: #f9fafb; padding: 10px; border-radius: 4px;">
+              <label style="color: #4f46e5;">Guest Name</label>
+              <input id="bkGuestName" placeholder="Your Name" />
+              <label style="color: #4f46e5;">Guest Email</label>
+              <input id="bkGuestEmail" type="email" placeholder="email@example.com" />
+          </div>
+
+          <button type="submit" style="margin-top: 15px;">Book Now</button>
           <pre id="bkOut" class="output"></pre>
         </form>
       </div>

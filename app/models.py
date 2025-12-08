@@ -10,6 +10,7 @@ class Role(str, enum.Enum):
     CUSTOMER = "customer"
     OWNER = "owner"
     STYLIST = "stylist"
+    GUEST = "guest"  # <-- Mới thêm
 
 class User(Base):
     __tablename__ = "users"
@@ -30,7 +31,7 @@ class Stylist(Base):
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     bio: Mapped[str | None] = mapped_column(String)
     
-    # New fields for flexible working hours
+    # Giờ làm việc linh hoạt
     start_hour: Mapped[int] = mapped_column(Integer, default=9)
     end_hour: Mapped[int] = mapped_column(Integer, default=20)
 

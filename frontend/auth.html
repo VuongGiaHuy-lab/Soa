@@ -5,6 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Auth - Salon Booking</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .toast {
+      visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
+      text-align: center; border-radius: 4px; padding: 16px; position: fixed;
+      z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s;
+    }
+    .toast.show { visibility: visible; opacity: 1; bottom: 50px; }
+    .toast.success { background-color: #10b981; }
+    .toast.error { background-color: #ef4444; }
+    button:disabled { opacity: 0.7; cursor: not-allowed; }
+    
+    /* Style cho nút Guest */
+    .guest-btn {
+        background-color: #6366f1; /* Indigo */
+        margin-top: 20px; 
+        width: 100%; 
+        max-width: 300px;
+    }
+    .guest-container {
+        text-align: center; 
+        margin-top: 30px; 
+        padding-top: 20px; 
+        border-top: 1px solid #e5e7eb;
+    }
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -19,20 +44,57 @@
       </nav>
     </div>
   </header>
+
   <main class="container">
-    <h2>Login</h2>
-    <form class="card" onsubmit="login(event)">
-      <label>Email</label>
-      <input id="loginEmail" type="email" required>
-      <label>Password</label>
-      <input id="loginPass" type="password" required>
-      <button type="submit">Login</button>
-      <pre id="loginOut" class="output"></pre>
-    </form>
-    <p>
-      Need an account? <a href="/register">Register here</a>
-    </p>
+    <h2 style="text-align: center; margin-bottom: 20px;">Welcome</h2>
+    
+    <div id="toast"></div>
+
+    <div class="grid-two">
+      
+      <form class="card" onsubmit="login(event)">
+        <h3>Login</h3>
+        <p class="status">For returning members and owners.</p>
+        
+        <label>Email</label>
+        <input id="loginEmail" type="email" required placeholder="owner@salon.local">
+        
+        <label>Password</label>
+        <input id="loginPass" type="password" required>
+        
+        <div style="margin-top: 10px; text-align: right;">
+            <a href="/forgot-password" style="font-size: 0.9em; color: #4f46e5;">Forgot Password?</a>
+        </div>
+
+        <button type="submit" style="margin-top: 15px;">Login</button>
+      </form>
+
+      <form class="card" onsubmit="register(event)">
+        <h3>Create Account</h3>
+        <p class="status">New customer? Join us today.</p>
+        
+        <label>Email</label>
+        <input id="regEmail" type="email" required placeholder="alice@example.com">
+        
+        <label>Full Name</label>
+        <input id="regName" placeholder="Alice Smith">
+        
+        <label>Password</label>
+        <input id="regPass" type="password" minlength="8" required placeholder="Min 8 characters">
+        
+        <button type="submit" style="margin-top: 28px; background-color: #10b981;">Register</button>
+      </form>
+
+    </div>
+
+    <div class="guest-container">
+        <p>Just want to book quickly?</p>
+        <button onclick="continueAsGuest()" class="guest-btn">Continue as Guest</button>
+    </div>
+
   </main>
+  
+  <input type="hidden" id="apiBase" value="http://localhost:8000">
   <script src="/static/auth.js"></script>
 </body>
 </html>
