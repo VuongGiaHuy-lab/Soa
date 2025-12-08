@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Owner - Salon Booking</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="brand">Salon Booking</h1>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/auth">Auth</a>
+        <a href="/services">Services</a>
+        <a href="/book">Booking</a>
+        <a href="/admin">Owner</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <h2>Owner Panel</h2>
+    <div class="grid-two">
+      <form class="card" onsubmit="createService(event)">
+        <h3>Create Service</h3>
+        <label>Name</label>
+        <input id="svcName" value="Basic Cut" required>
+        <label>Description</label>
+        <input id="svcDesc" value="Haircut">
+        <div class="grid-two">
+          <div>
+            <label>Price</label>
+            <input id="svcPrice" type="number" value="20" required>
+          </div>
+          <div>
+            <label>Duration (minutes)</label>
+            <input id="svcDur" type="number" value="60" required>
+          </div>
+        </div>
+        <button type="submit">Create Service</button>
+        <pre id="svcOut" class="output"></pre>
+      </form>
+
+      <div class="card">
+        <h3>Users</h3>
+        <div class="card-actions">
+          <button onclick="listUsers()">Refresh</button>
+        </div>
+        <pre id="usersOut" class="output"></pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>All Bookings</h3>
+      <div class="card-actions">
+        <button id="load-all-bookings">Load All Bookings</button>
+      </div>
+      <pre id="allBookingsOut" class="output"></pre>
+    </div>
+
+    <div class="grid-two">
+      <form class="card" onsubmit="loadServices(event)">
+        <h3>Walk-in: Step 1 - Choose Service</h3>
+        <div class="card-actions">
+          <button type="submit">Load Services</button>
+        </div>
+        <div id="walkinServiceList"></div>
+      </form>
+
+      <form class="card" onsubmit="loadStylists(event)">
+        <h3>Walk-in: Step 2 - Choose Stylist</h3>
+        <div class="card-actions">
+          <button type="submit">Load Stylists</button>
+        </div>
+        <div id="walkinStylistList" class="stylist-cards"></div>
+      </form>
+    </div>
+
+    <form class="card" onsubmit="createWalkin(event)">
+      <h3>Walk-in: Step 3 - Date, Time & Customer Info</h3>
+        <div class="grid-two">
+          <div>
+            <label>Date</label>
+            <input type="date" id="walkin-date" />
+          </div>
+
+          <div class="slots-section">
+            <div class="slots-header">
+              <h3>Available Timeslots</h3>
+              <button id="walkin-load-slots" class="secondary">Load Slots</button>
+            </div>
+            <div id="walkin-slots" class="slot-grid"></div>
+            <div id="walkin-selected-slot" class="muted"></div>
+          </div>
+
+        </div>
+      <div class="grid-two">
+        <div>
+          <label>Customer Name</label>
+          <input id="walkinName" required>
+        </div>
+        <div>
+          <label>Customer Email (optional)</label>
+          <input id="walkinEmail">
+        </div>
+      </div>
+      <input id="walkinServiceId" type="hidden">
+      <input id="walkinStylistId" type="hidden">
+      <p>
+        <strong>Service:</strong> <span id="walkinConfirmService">-</span><br>
+        <strong>Stylist:</strong> <span id="walkinConfirmStylist">-</span><br>
+        <strong>Start:</strong> <span id="walkinConfirmStart">-</span>
+      </p>
+      <button type="submit">Create Walk-in Booking</button>
+      <pre id="walkinOut" class="output"></pre>
+    </form>
+  </main>
+  <script src="/static/admin.js"></script>
+</body>
+</html>

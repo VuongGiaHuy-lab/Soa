@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Services - Salon Booking</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="brand">Salon Booking</h1>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/auth">Auth</a>
+        <a href="/services">Services</a>
+        <a href="/book">Booking</a>
+        <a href="/admin">Owner</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <h2>Services</h2>
+    <div class="card">
+      <div class="card-actions">
+        <button onclick="listServices()">Refresh</button>
+      </div>
+      <pre id="servicesList" class="output"></pre>
+    </div>
+  </main>
+  <script src="/static/services.js"></script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Salon Booking</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="brand">Salon Booking</h1>
+      <nav class="nav">
+        <a href="#home" data-view>Home</a>
+        <a href="#auth" data-view>Auth</a>
+        <a href="#browse" data-view>Browse</a>
+        <a href="#booking" data-view>Booking</a>
+        <a href="#owner" data-view>Owner</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Home -->
+    <section id="home" class="view active">
+      <h2>Welcome</h2>
+      <p>Use the tabs above to register/login, browse services and stylists, check availability, create bookings, and pay.</p>
+      <form class="form grid">
+        <label for="apiBase">API Base URL</label>
+        <input id="apiBase" value="http://localhost:8000" />
+        <div id="status" class="status">Not logged in</div>
+      </form>
+    </section>
+
+    <!-- Auth -->
+    <section id="auth" class="view">
+      <h2>Authentication</h2>
+      <div class="grid-two">
+        <form class="card" onsubmit="register(event)">
+          <h3>Register (Customer)</h3>
+          <label for="regEmail">Email</label>
+          <input id="regEmail" type="email" required />
+          <label for="regName">Full Name</label>
+          <input id="regName" />
+          <label for="regPass">Password</label>
+          <input id="regPass" type="password" minlength="8" required />
+          <button type="submit">Register</button>
+          <pre id="regOut" class="output"></pre>
+        </form>
+
+        <form class="card" onsubmit="login(event)">
+          <h3>Login</h3>
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" required />
+          <label for="loginPass">Password</label>
+          <input id="loginPass" type="password" required />
+          <button type="submit">Login</button>
+          <pre id="loginOut" class="output"></pre>
+        </form>
+      </div>
+    </section>
+
+    <!-- Browse -->
+    <section id="browse" class="view">
+      <h2>Browse</h2>
+      <div class="grid-two">
+        <div class="card">
+          <div class="card-actions">
+            <button onclick="listServices()">List Services</button>
+          </div>
+          <pre id="servicesList" class="output"></pre>
+        </div>
+        <div class="card">
+          <div class="card-actions">
+            <button onclick="listStylists()">List Stylists</button>
+          </div>
+          <pre id="stylistsList" class="output"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Booking -->
+    <section id="booking" class="view">
+      <h2>Booking</h2>
+      <div class="grid-two">
+        <form class="card" onsubmit="checkAvailability(event)">
+          <h3>Check Availability</h3>
+          <label for="availServiceId">Service ID</label>
+          <input id="availServiceId" type="number" required />
+          <label for="availDate">Date (YYYY-MM-DD)</label>
+          <input id="availDate" placeholder="YYYY-MM-DD" required />
+          <label for="availStylistId">Stylist ID (optional)</label>
+          <input id="availStylistId" type="number" />
+          <button type="submit">Check</button>
+          <pre id="availOut" class="output"></pre>
+        </form>
+
+        <form class="card" onsubmit="createBooking(event)">
+          <h3>Create Booking</h3>
+          <label for="bkServiceId">Service ID</label>
+          <input id="bkServiceId" type="number" required />
+          <label for="bkStylistId">Stylist ID (optional)</label>
+          <input id="bkStylistId" type="number" />
+          <label for="bkStart">Start Time (ISO)</label>
+          <input id="bkStart" placeholder="2025-12-07T10:00:00" required />
+          <button type="submit">Create</button>
+          <pre id="bkOut" class="output"></pre>
+        </form>
+      </div>
+
+      <form class="card" onsubmit="payBooking(event)">
+        <h3>Pay Booking</h3>
+        <label for="payBookingId">Booking ID</label>
+        <input id="payBookingId" type="number" required />
+        <label for="payAmount">Amount</label>
+        <input id="payAmount" type="number" value="20" required />
+        <div class="grid-two">
+          <div>
+            <label for="payCard">Card Number</label>
+            <input id="payCard" value="4242424242424242" required />
+          </div>
+          <div>
+            <label for="payCVV">CVV</label>
+            <input id="payCVV" value="123" required />
+          </div>
+        </div>
+        <div class="grid-two">
+          <div>
+            <label for="payMonth">Expiry Month</label>
+            <input id="payMonth" type="number" value="12" required />
+          </div>
+          <div>
+            <label for="payYear">Expiry Year</label>
+            <input id="payYear" type="number" value="2099" required />
+          </div>
+        </div>
+        <label for="payName">Cardholder Name</label>
+        <input id="payName" value="Alice" required />
+        <button type="submit">Pay</button>
+        <pre id="payOut" class="output"></pre>
+      </form>
+    </section>
+
+    <!-- Owner -->
+    <section id="owner" class="view">
+      <h2>Owner Panel</h2>
+      <p>Login as owner to use these actions.</p>
+      <form class="card" onsubmit="createService(event)">
+        <h3>Create Service</h3>
+        <label for="svcName">Name</label>
+        <input id="svcName" value="Basic Cut" required />
+        <label for="svcDesc">Description</label>
+        <input id="svcDesc" value="Haircut" />
+        <div class="grid-two">
+          <div>
+            <label for="svcPrice">Price</label>
+            <input id="svcPrice" type="number" value="20" required />
+          </div>
+          <div>
+            <label for="svcDur">Duration (minutes)</label>
+            <input id="svcDur" type="number" value="60" required />
+          </div>
+        </div>
+        <button type="submit">Create Service</button>
+        <pre id="svcOut" class="output"></pre>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <small>&copy; 2025 Salon Booking</small>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

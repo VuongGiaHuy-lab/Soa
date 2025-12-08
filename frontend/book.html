@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Booking - Salon Booking</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="brand">Salon Booking</h1>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/auth">Auth</a>
+        <a href="/services">Services</a>
+        <a href="/book">Booking</a>
+        <a href="/admin">Owner</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <h2>Booking</h2>
+    <div class="grid-two">
+      <div class="card">
+        <h3>1) Choose Service</h3>
+        <div class="card-actions">
+          <button onclick="loadServices()">Load Services</button>
+        </div>
+        <div id="serviceList"></div>
+      </div>
+
+      <div class="card">
+        <h3>2) Choose Stylist</h3>
+        <div class="card-actions">
+          <button onclick="loadStylists()">Load Stylists</button>
+        </div>
+        <div id="stylistList" class="stylist-cards"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>3) Pick Date & Timeslot</h3>
+      <div class="grid-two">
+        <div>
+          <label>Date</label>
+          <input type="date" id="availDate" required>
+        </div>
+        <div>
+          <button onclick="loadSlots()">Show Slots</button>
+        </div>
+      </div>
+      <div id="slotGrid" class="slot-grid"></div>
+    </div>
+
+    <form class="card" onsubmit="createBooking(event)">
+      <h3>4) Confirm Booking</h3>
+      <input id="bkServiceId" type="hidden">
+      <input id="bkStylistId" type="hidden">
+      <input id="bkStart" type="hidden">
+      <p>
+        <strong>Service:</strong> <span id="confirmService">-</span><br>
+        <strong>Stylist:</strong> <span id="confirmStylist">-</span><br>
+        <strong>Start:</strong> <span id="confirmStart">-</span>
+      </p>
+      <button type="submit">Create Booking</button>
+      <pre id="bkOut" class="output"></pre>
+    </form>
+
+    <form class="card" onsubmit="payBooking(event)">
+      <h3>Pay Booking</h3>
+      <label>Booking ID</label>
+      <input id="payBookingId" type="number" required>
+      <label>Amount</label>
+      <input id="payAmount" type="number" value="20" required>
+      <div class="grid-two">
+        <div>
+          <label>Card Number</label>
+          <input id="payCard" value="4242424242424242" required>
+        </div>
+        <div>
+          <label>CVV</label>
+          <input id="payCVV" value="123" required>
+        </div>
+      </div>
+      <div class="grid-two">
+        <div>
+          <label>Expiry Month</label>
+          <input id="payMonth" type="number" value="12" required>
+        </div>
+        <div>
+          <label>Expiry Year</label>
+          <input id="payYear" type="number" value="2099" required>
+        </div>
+      </div>
+      <label>Cardholder Name</label>
+      <input id="payName" value="Alice" required>
+      <button type="submit">Pay</button>
+      <pre id="payOut" class="output"></pre>
+    </form>
+  </main>
+  <script src="/static/book.js"></script>
+</body>
+</html>

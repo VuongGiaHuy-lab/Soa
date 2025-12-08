@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register - Salon Booking</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="brand">Salon Booking</h1>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/auth">Auth</a>
+        <a href="/services">Services</a>
+        <a href="/book">Booking</a>
+        <a href="/admin">Owner</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <h2>Register</h2>
+    <form class="card" onsubmit="register(event)">
+      <label>Email</label>
+      <input id="regEmail" type="email" required>
+      <label>Full Name</label>
+      <input id="regName">
+      <label>Password</label>
+      <input id="regPass" type="password" minlength="8" required>
+      <button type="submit">Create Account</button>
+      <pre id="regOut" class="output"></pre>
+    </form>
+  </main>
+  <script src="/static/register.js"></script>
+</body>
+</html>
