@@ -1,29 +1,26 @@
-import os
+# app/email_utils.py
 import smtplib
 from email.message import EmailMessage
-
-SMTP_HOST = os.getenv("SMTP_HOST")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASS = os.getenv("SMTP_PASS")
-SMTP_SENDER = os.getenv("SMTP_SENDER", "no-reply@salon.local")
-
+from .config import settings # Import settings
 
 def send_email(to_email: str, subject: str, body: str) -> None:
-    if not SMTP_HOST or not SMTP_USER or not SMTP_PASS:
-        # Fallback: log to console if SMTP not configured
+    # Kiểm tra cấu hình từ settings
+    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASS:
         print("[EMAIL MOCK] To:", to_email)
         print("Subject:", subject)
         print("Body:\n", body)
         return
 
     msg = EmailMessage()
-    msg["From"] = SMTP_SENDER
+    msg["From"] = settings.SMTP_SENDER
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.set_content(body)
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASS)
+            server.send_message(msg)
+    except Exception as e:
+        print(f"Failed to send email: {e}")

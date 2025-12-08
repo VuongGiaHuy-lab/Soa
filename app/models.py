@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, Float
+# app/models.py
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 import enum
 
@@ -28,6 +29,10 @@ class Stylist(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     bio: Mapped[str | None] = mapped_column(String)
+    
+    # New fields for flexible working hours
+    start_hour: Mapped[int] = mapped_column(Integer, default=9)
+    end_hour: Mapped[int] = mapped_column(Integer, default=20)
 
     user = relationship("User", back_populates="stylist_profile")
     bookings = relationship("Booking", back_populates="stylist")
@@ -53,8 +58,8 @@ class Booking(Base):
     __tablename__ = "bookings"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    customer_name: Mapped[str | None] = mapped_column(String, nullable=True)  # for walk-in
-    customer_email: Mapped[str | None] = mapped_column(String, nullable=True)  # for walk-in
+    customer_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    customer_email: Mapped[str | None] = mapped_column(String, nullable=True)
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
     stylist_id: Mapped[int | None] = mapped_column(ForeignKey("stylists.id"), nullable=True)
     start_time: Mapped[datetime] = mapped_column(DateTime, index=True)
@@ -80,4 +85,3 @@ class Payment(Base):
     provider: Mapped[str | None] = mapped_column(String, nullable=True)
     masked_details: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-

@@ -1,17 +1,16 @@
-from fastapi import FastAPI, Depends
+# app/main.py
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
-from .database import Base, engine, get_db, SessionLocal
-from . import models
+from .database import Base, engine, SessionLocal
+from .config import settings  # Import settings mới
 from .auth import get_password_hash
 from .routers import auth as auth_router
 from .routers import services as services_router
 from .routers import stylists as stylists_router
 from .routers import bookings as bookings_router
 from .routers import admin as admin_router
-import os
 
 app = FastAPI(title="Salon Booking API")
 
@@ -21,25 +20,32 @@ Base.metadata.create_all(bind=engine)
 # Seed default owner
 @app.on_event("startup")
 def seed_owner():
-    from .models import User, Role
+    from .models import User, Role, Stylist
     with SessionLocal() as db:
-        admin_email = os.getenv("ADMIN_EMAIL", "owner@salon.local")
-        admin_password = os.getenv("ADMIN_PASSWORD", "Owner@12345")
+        # Sử dụng settings thay vì os.getenv
+        admin_email = settings.ADMIN_EMAIL
+        admin_password = settings.ADMIN_PASSWORD
+        
         user = db.query(User).filter(User.email == admin_email).first()
         if not user:
-            user = User(email=admin_email, hashed_password=get_password_hash(admin_password), role=Role.OWNER.value, full_name="Store Owner")
+            user = User(
+                email=admin_email, 
+                hashed_password=get_password_hash(admin_password), 
+                role=Role.OWNER.value, 
+                full_name="Store Owner"
+            )
             db.add(user)
             db.commit()
         else:
-            # Ensure known password and role for test/dev
+            # Update password/role if needed based on config
             user.hashed_password = get_password_hash(admin_password)
             user.role = Role.OWNER.value
             db.commit()
+            
         # Seed a default stylist if none exist
-        from .models import Stylist
         has_stylist = db.query(Stylist).count() > 0
         if not has_stylist:
-            st = Stylist(user_id=user.id, display_name="Sam", bio="Default stylist")
+            st = Stylist(user_id=user.id, display_name="Sam", bio="Default stylist", start_hour=9, end_hour=20)
             db.add(st)
             db.commit()
 
@@ -49,7 +55,7 @@ app.include_router(stylists_router.router)
 app.include_router(bookings_router.router)
 app.include_router(admin_router.router)
 
-# Dev CORS (allow local files and localhost)
+# Dev CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -60,10 +66,9 @@ app.add_middleware(
 
 @app.get("/")
 def root():
-    # Redirect to auth page by default so users land on login first
     return RedirectResponse(url="/auth")
 
-# Convenience routes for multi-page frontend
+# Frontend routes
 @app.get("/auth")
 def page_auth():
     return FileResponse("frontend/auth.html")
@@ -88,7 +93,10 @@ def page_admin():
 def page_forgot_password():
     return FileResponse("frontend/forgot-password.html")
 
-# Also mount static frontend assets (if you add css/js files later)
+# Thêm route cho trang reset password mới
+@app.get("/reset-password")
+def page_reset_password():
+    return FileResponse("frontend/reset-password.html")
+
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
-# Serve the entire frontend directory at /frontend so direct file paths work
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
