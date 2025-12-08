@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Salon Booking</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=6" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -12,11 +11,12 @@
     <div class="container">
       <a href="#home" class="brand">✨ Salon Luxury</a>
       <nav class="nav">
-        <a href="#home" data-view>Home</a>
-        <a href="#browse" data-view>Services</a>
-        <a href="#booking" data-view>Book Now</a>
-        <a href="#my-bookings" data-view onclick="loadMyBookings()">My History</a>
-        <a href="#owner" data-view>Owner</a>
+        <a href="#home" data-view style="display:block">Home</a>
+        <a href="#browse" data-view id="nav-services" class="nav-link">Services</a>
+        <a href="#booking" data-view id="nav-booking" class="nav-link">Book Now</a>
+        <a href="#my-bookings" data-view id="nav-history" class="nav-link">My History</a>
+        <a href="#owner" data-view id="nav-owner" class="nav-link">Owner</a>
+        <a href="#" id="nav-logout" class="nav-link" onclick="handleLogout()">Logout</a>
       </nav>
     </div>
   </header>
@@ -25,115 +25,111 @@
     <div id="toast"></div>
 
     <section id="home" class="view active">
-      <div class="text-center" style="padding: 40px 0;">
+      <div class="text-center" style="padding: 60px 0;">
         <h1 style="font-size: 2.5rem; margin-bottom: 10px; color: var(--primary);">Welcome to Salon Luxury</h1>
-        <p class="text-muted">Experience premium styling and seamless booking.</p>
-      </div>
-
-      <div class="grid-two">
-        <div class="card text-center" style="border-top: 4px solid var(--primary);">
-          <h3>Member Access</h3>
-          <p class="text-muted" style="margin-bottom: 20px;">Manage your appointments and view history.</p>
-          <a href="/auth" class="button" style="text-decoration:none;"><button style="width:100%">Login / Register</button></a>
+        <p class="text-muted" style="margin-bottom: 40px;">Experience premium styling and seamless booking.</p>
+        <div id="home-options" class="grid-two" style="max-width: 800px; margin: 0 auto;">
+            <div class="card text-center" style="border-top: 4px solid var(--primary); cursor: pointer;" onclick="window.location.href='/auth'">
+              <h3 style="color: var(--primary);">Member Access</h3>
+              <p class="text-muted">Login to manage your appointments.</p>
+              <button style="width:100%; margin-top:10px;">Login / Register</button>
+            </div>
+            <div class="card text-center" style="border-top: 4px solid var(--success); cursor: pointer;" onclick="enableGuestMode()">
+              <h3 style="color: var(--success);">Quick Booking</h3>
+              <p class="text-muted">Book instantly without an account.</p>
+              <button class="secondary" style="width:100%; margin-top:10px;">Continue as Guest</button>
+            </div>
         </div>
-        <div class="card text-center" style="border-top: 4px solid var(--success);">
-          <h3>Quick Booking</h3>
-          <p class="text-muted" style="margin-bottom: 20px;">Book an appointment instantly without an account.</p>
-          <button onclick="enableGuestMode()" class="secondary" style="width:100%">Continue as Guest</button>
+        <div id="home-logged-in" style="display:none; text-align:center;">
+            <h3 style="color: var(--primary);">Welcome back!</h3>
+            <p class="text-muted">Ready for your next style?</p>
+            <div style="margin-top:20px;">
+                <button onclick="document.querySelector('a[href=\'#booking\']').click()" style="padding: 12px 30px; font-size: 1.1rem;">Book Appointment</button>
+            </div>
         </div>
       </div>
-      
       <div style="margin-top: 40px; text-align: center;">
         <input id="apiBase" type="hidden" value="http://localhost:8000" />
-        <div id="status" class="badge pending" style="display:inline-block;">Checking status...</div>
+        <div id="status" class="badge pending" style="display:none;"></div>
       </div>
     </section>
 
     <section id="browse" class="view">
       <div class="grid-two">
         <div class="card">
-          <h3>Our Services</h3>
-          <div class="card-actions"><button class="secondary" onclick="listServices()">Refresh List</button></div>
-          <div id="servicesList" class="text-muted">Loading services...</div>
+          <h3>Services</h3>
+          <div class="card-actions"><button class="secondary" onclick="listServices()">Refresh</button></div>
+          <div id="servicesList" class="text-muted">Loading...</div>
         </div>
         <div class="card">
-          <h3>Our Stylists</h3>
-          <div class="card-actions"><button class="secondary" onclick="listStylists()">Refresh List</button></div>
-          <div id="stylistsList" class="stylist-cards">Loading stylists...</div>
+          <h3>Stylists</h3>
+          <div class="card-actions"><button class="secondary" onclick="listStylists()">Refresh</button></div>
+          <div id="stylistsList" class="stylist-cards">Loading...</div>
         </div>
       </div>
     </section>
 
     <section id="booking" class="view">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <h2>Make an Appointment</h2>
-        <span id="bookingModeBadge" class="badge success" style="display:none;">Guest Mode</span>
-      </div>
-
-      <div class="grid-two">
-        <form class="card" onsubmit="checkAvailability(event)">
-          <h3>1. Find Availability</h3>
-          <div class="grid-two">
-            <div>
-                <label>Service ID</label>
-                <input id="availServiceId" type="number" required placeholder="e.g. 1" />
+      <div class="card booking-wizard">
+        <h3 style="color: var(--primary);">1. Select Details</h3>
+        <div class="grid-three">
+            <div><label>Service</label><select id="bkSelectService" onchange="autoLoadSlots()" style="width:100%"><option value="">Loading...</option></select></div>
+            <div><label>Stylist</label><select id="bkSelectStylist" onchange="autoLoadSlots()" style="width:100%"><option value="">Loading...</option></select></div>
+            <div><label>Date</label><input id="bkSelectDate" type="date" onchange="autoLoadSlots()" style="width:100%" /></div>
+        </div>
+        <div id="slotsArea" class="time-slots-container" style="display:none; margin-top:30px; border-top:1px solid #eee; padding-top:20px;">
+            <h3 style="color: var(--primary);">2. Select Time Slot</h3>
+            <p id="slotsMsg" class="text-muted">Fetching available slots...</p>
+            <div id="slotsGrid" class="time-grid"></div>
+        </div>
+        <div id="guestFields" style="display:none; margin-top:30px; border-top:1px solid #eee; padding-top:20px;">
+            <h3 style="color: var(--success);">3. Guest Information</h3>
+            <div class="grid-three">
+                <div><label>Full Name</label><input id="bkGuestName" placeholder="Your Name" required></div>
+                <div><label>Email</label><input id="bkGuestEmail" type="email" placeholder="name@example.com" required></div>
+                <div><label>Phone</label><input id="bkGuestPhone" type="tel" placeholder="0901234567" required></div>
             </div>
-            <div>
-                <label>Stylist ID</label>
-                <input id="availStylistId" type="number" required placeholder="e.g. 1" />
+        </div>
+        <div id="bookingActions" style="display:none; margin-top:30px;">
+            <div class="booking-summary">
+                <strong>Ready to Book:</strong> <span id="sumService">Service</span> with <span id="sumStylist">Stylist</span> at <span id="sumTime">Time</span>
             </div>
-          </div>
-          <label>Date</label>
-          <input id="availDate" type="date" required />
-          <button type="submit" class="mt-4" style="width:100%">Check Slots</button>
-          <div id="availOut" style="margin-top:10px; font-size:0.9rem;"></div>
-        </form>
-
-        <form class="card" onsubmit="handleBookingSubmit(event)">
-          <h3>2. Confirm Details</h3>
-          <label>Selected Start Time</label>
-          <input id="bkStart" placeholder="YYYY-MM-DDTHH:MM:SS" required readonly style="background:#f9fafb; cursor: not-allowed;" />
-          
-          <input id="bkServiceId" type="hidden" />
-          <input id="bkStylistId" type="hidden" />
-
-          <div id="guestFields" style="display:none; background:#f0f9ff; padding:16px; border-radius:var(--radius); margin-top:16px; border:1px solid #bae6fd;">
-              <h4 style="margin-bottom:10px; color:#0369a1;">Guest Information</h4>
-              <label>Full Name</label>
-              <input id="bkGuestName" placeholder="Your Name" />
-              <label>Email Address</label>
-              <input id="bkGuestEmail" type="email" placeholder="name@example.com" />
-          </div>
-
-          <button type="submit" class="mt-4" style="width:100%; background-color: var(--success);">Confirm Booking</button>
-          <pre id="bkOut" style="display:none;"></pre>
-        </form>
+            <input type="hidden" id="bkStart"> <input type="hidden" id="bkServiceId"> <input type="hidden" id="bkStylistId">
+            <button onclick="submitStreamlinedBooking()" class="mt-4" style="width:100%; padding: 14px; font-size: 1.1rem; background-color: var(--primary);">Confirm Booking</button>
+        </div>
       </div>
     </section>
 
     <section id="my-bookings" class="view">
       <h2>My Booking History</h2>
       <div class="card">
-        <div class="card-actions">
-          <button class="secondary" onclick="loadMyBookings()">Refresh</button>
-        </div>
+        <div class="card-actions"><button class="secondary" onclick="loadMyBookings()">Refresh List</button></div>
         <div id="myBookingsList" style="overflow-x: auto;">Please login to view bookings.</div>
       </div>
       
       <div class="card mt-4">
         <h3>Secure Payment</h3>
         <p class="text-muted">Enter booking ID to pay securely.</p>
-        <form onsubmit="payBooking(event)" class="grid-three" style="align-items:end;">
+        <form id="paymentForm" class="grid-three" style="align-items:end;">
             <div><label>Booking ID</label><input id="payBookingId" type="number" required /></div>
-            <div><label>Amount ($)</label><input id="payAmount" type="number" value="20" required /></div>
-            <div><button type="submit" style="width:100%">Pay Now</button></div>
+            <div><label>Total Price ($)</label><input id="payAmount" type="number" readonly style="background:#eee;" /></div>
+            
+            <div style="display:flex; gap:10px; width:100%;">
+                <button type="button" onclick="payFull()" style="flex:1;">Pay Full Now</button>
+                <button type="button" onclick="payDeposit()" class="secondary" style="flex:1; border:1px solid var(--primary); color:var(--primary);">
+                    Pay Deposit (30%)
+                </button>
+            </div>
         </form>
-        <div style="display:none;">
-            <input id="payCard" value="4242424242424242">
-            <input id="payCVV" value="123">
-            <input id="payMonth" value="12"><input id="payYear" value="2099">
-            <input id="payName" value="Alice">
+        <div class="grid-two mt-4">
+             <div><label>Card Number</label><input id="payCard" value="4242424242424242"></div>
+             <div class="grid-three">
+                 <div><label>Exp Month</label><input id="payMonth" value="12"></div>
+                 <div><label>Exp Year</label><input id="payYear" value="2099"></div>
+                 <div><label>CVV</label><input id="payCVV" value="123"></div>
+             </div>
         </div>
+        <input type="hidden" id="payName" value="Alice">
         <div id="payOut" class="mt-4"></div>
       </div>
     </section>
@@ -141,12 +137,10 @@
     <section id="owner" class="view">
       <div class="text-center" style="padding: 40px;">
         <h2>Owner Dashboard</h2>
-        <p class="text-muted">Advanced management tools.</p>
-        <a href="/admin" class="button" style="text-decoration:none;"><button>Go to Admin Panel</button></a>
+        <a href="/admin" style="text-decoration:none;"><button>Go to Admin Panel</button></a>
       </div>
     </section>
   </main>
-
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>

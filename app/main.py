@@ -14,17 +14,17 @@ from .routers import admin as admin_router
 
 app = FastAPI(title="Salon Booking API")
 
-# Create tables
 Base.metadata.create_all(bind=engine)
 
-# Seed default owner
 @app.on_event("startup")
-def seed_owner():
-    from .models import User, Role, Stylist
+def seed_data():
+    # Import Models bên trong hàm để tránh lỗi vòng lặp
+    from .models import User, Role, Stylist, Service
+    
     with SessionLocal() as db:
+        # 1. TẠO OWNER (ADMIN)
         admin_email = settings.ADMIN_EMAIL
         admin_password = settings.ADMIN_PASSWORD
-        
         user = db.query(User).filter(User.email == admin_email).first()
         if not user:
             user = User(
@@ -36,16 +36,58 @@ def seed_owner():
             db.add(user)
             db.commit()
         else:
-            user.hashed_password = get_password_hash(admin_password)
+            # Đảm bảo quyền luôn là Owner
             user.role = Role.OWNER.value
             db.commit()
-            
-        # Seed a default stylist if none exist
+        
+        # 2. TẠO STYLIST MẶC ĐỊNH (Nếu chưa có)
         has_stylist = db.query(Stylist).count() > 0
         if not has_stylist:
-            st = Stylist(user_id=user.id, display_name="Sam", bio="Default stylist", start_hour=9, end_hour=20)
-            db.add(st)
-            db.commit()
+            # Lấy user vừa tạo/tìm thấy ở trên để làm stylist mẫu
+            # Lưu ý: Trong thực tế nên tạo user riêng, nhưng để demo thì dùng tạm
+            try:
+                st = Stylist(
+                    user_id=user.id, 
+                    display_name="Sam", 
+                    bio="Top Stylist", 
+                    start_hour=9, 
+                    end_hour=20
+                )
+                db.add(st)
+                db.commit()
+            except:
+                pass # Bỏ qua nếu user.id đã có trong bảng stylists (Unique constraint)
+
+        # 3. TẠO 3 DỊCH VỤ MẪU (SERVICES) <-- PHẦN MỚI THÊM
+        sample_services = [
+            {
+                "name": "Women's Haircut",
+                "price": 40.0,
+                "duration_minutes": 60,
+                "description": "Wash, cut & blowdry styling."
+            },
+            {
+                "name": "Men's Haircut",
+                "price": 25.0,
+                "duration_minutes": 30,
+                "description": "Standard clipper or scissor cut."
+            },
+            {
+                "name": "Color & Style",
+                "price": 100.0,
+                "duration_minutes": 120,
+                "description": "Full hair coloring and professional styling."
+            }
+        ]
+
+        for svc_data in sample_services:
+            # Kiểm tra xem dịch vụ đã tồn tại chưa (dựa theo tên)
+            exists = db.query(Service).filter(Service.name == svc_data["name"]).first()
+            if not exists:
+                new_svc = Service(**svc_data)
+                db.add(new_svc)
+        
+        db.commit() # Lưu tất cả dịch vụ mới
 
 app.include_router(auth_router.router)
 app.include_router(services_router.router)
@@ -53,7 +95,6 @@ app.include_router(stylists_router.router)
 app.include_router(bookings_router.router)
 app.include_router(admin_router.router)
 
-# Dev CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -62,12 +103,9 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# --- SỬA ĐỔI QUAN TRỌNG Ở ĐÂY ---
 @app.get("/")
 def root():
-    # Trả về trang chủ thay vì redirect
     return FileResponse("frontend/index.html")
-# --------------------------------
 
 # Frontend routes
 @app.get("/auth")
@@ -97,6 +135,10 @@ def page_forgot_password():
 @app.get("/reset-password")
 def page_reset_password():
     return FileResponse("frontend/reset-password.html")
+
+@app.get("/stylist-portal")
+def page_stylist():
+    return FileResponse("frontend/stylist.html")
 
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")

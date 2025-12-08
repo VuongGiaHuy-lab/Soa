@@ -1,209 +1,245 @@
-// frontend/app.js (Cập nhật các hàm bên dưới, giữ nguyên phần đầu)
+const API = document.getElementById('apiBase') ? document.getElementById('apiBase').value : 'http://localhost:8000';
+let token = localStorage.getItem('token') || null;
+let isGuestMode = false;
+let userRole = null;
 
-// ... (SPA Navigation, Utils, Auth, Services, Stylists giữ nguyên) ...
+if(token) {
+    try { const payload = JSON.parse(atob(token.split('.')[1])); userRole = payload.role; } 
+    catch(e) { console.error("Invalid token"); token = null; }
+}
 
-// --- BOOKING LOGIC ---
-// ... (checkAvailability giữ nguyên) ...
+function api() { return API; }
 
-// 1. Cập nhật createGuestBooking
-async function createGuestBooking() {
-    const btn = document.querySelector('#booking button[type="submit"]');
-    setLoading(btn, true, "Reserving...");
+// --- NAV & GUARD ---
+(function(){
+  const links = document.querySelectorAll('[data-view]');
+  const views = document.querySelectorAll('.view');
+  function activate(id){
+    if (!checkAccess(id)) { if(id!=='home') showToast("Please login first", "warning"); activate('home'); return; }
+    views.forEach(v => v.classList.remove('active'));
+    const activeView = document.getElementById(id);
+    if(activeView) activeView.classList.add('active');
+    links.forEach(l => l.classList.toggle('active', l.getAttribute('href').replace('#','') === id));
+  }
+  links.forEach(a => a.addEventListener('click', (e)=>{ e.preventDefault(); activate(a.getAttribute('href').replace('#','')); }));
+  const hash = window.location.hash.replace('#','');
+  if(hash && document.getElementById(hash)) activate(hash); else activate('home');
+})();
+
+function checkAccess(id) {
+    if (id === 'home') return true;
+    if (isGuestMode) { return (id === 'booking' || id === 'browse' || id === 'my-bookings'); }
+    if (token) { if (id === 'owner') return userRole === 'owner'; return true; }
+    return false;
+}
+
+function updateUI() {
+    const navServices = document.getElementById('nav-services');
+    const navBooking = document.getElementById('nav-booking');
+    const navHistory = document.getElementById('nav-history');
+    const navOwner = document.getElementById('nav-owner');
+    const navLogout = document.getElementById('nav-logout');
     
+    [navServices, navBooking, navHistory, navOwner, navLogout].forEach(el => { if(el) el.style.display = 'none'; });
+
+    if (isGuestMode) {
+        if(navServices) navServices.style.display='block'; if(navBooking) navBooking.style.display='block';
+        if(navLogout) { navLogout.style.display='block'; navLogout.textContent="Exit Guest Mode"; }
+        document.getElementById('home-options').style.display='none'; document.getElementById('home-logged-in').style.display='none';
+    } else if (token) {
+        if(navServices) navServices.style.display='block'; if(navBooking) navBooking.style.display='block'; if(navHistory) navHistory.style.display='block';
+        if(navLogout) { navLogout.style.display='block'; navLogout.textContent="Logout"; }
+        if(userRole==='owner' && navOwner) navOwner.style.display='block';
+        document.getElementById('home-options').style.display='none'; document.getElementById('home-logged-in').style.display='block';
+    } else {
+        document.getElementById('home-options').style.display='grid'; document.getElementById('home-logged-in').style.display='none';
+    }
+}
+
+// --- INIT ---
+function enableGuestMode() {
+    isGuestMode=true; token=null; localStorage.removeItem('token'); userRole=null; updateUI();
+    document.getElementById('guestFields').style.display='block';
+    document.getElementById('bookingModeBadge').style.display='inline-block';
+    document.querySelector('a[href="#booking"]').click();
+    showToast("Guest Mode Activated!", "success");
+}
+function handleLogout() { token=null; localStorage.removeItem('token'); isGuestMode=false; userRole=null; window.location.href="/"; }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('guest') === 'true') { isGuestMode=true; window.history.replaceState({}, document.title, "/"); }
+    const statusEl = document.getElementById('status');
+    if(token && statusEl) { statusEl.textContent="Logged in"; statusEl.className="badge success"; statusEl.style.display='inline-block'; }
+    updateUI(); await populateBookingDropdowns();
+    const dateInput = document.getElementById('bkSelectDate'); if(dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+});
+
+// --- BOOKING ---
+async function populateBookingDropdowns() {
+    try {
+        const resSvc = await fetch(api()+"/services/"); const services = await resSvc.json();
+        document.getElementById('bkSelectService').innerHTML = '<option value="">-- Choose Service --</option>' + 
+            services.map(s => `<option value="${s.id}" data-name="${s.name}" data-price="${s.price}">${s.name} ($${s.price})</option>`).join('');
+        const resSt = await fetch(api()+"/stylists/"); const stylists = await resSt.json();
+        document.getElementById('bkSelectStylist').innerHTML = '<option value="">-- Choose Stylist --</option>' + 
+            stylists.map(s => `<option value="${s.id}" data-name="${s.display_name}">${s.display_name}</option>`).join('');
+    } catch(e) {}
+}
+
+async function autoLoadSlots() {
+    const sid = document.getElementById('bkSelectService').value;
+    const stid = document.getElementById('bkSelectStylist').value;
+    const date = document.getElementById('bkSelectDate').value;
+    const slotsArea = document.getElementById('slotsArea'); const grid = document.getElementById('slotsGrid'); const msg = document.getElementById('slotsMsg');
+    const actions = document.getElementById('bookingActions');
+    document.getElementById('bkStart').value = ''; if(actions) actions.style.display = 'none';
+
+    if (!sid || !stid || !date) { if(slotsArea) slotsArea.style.display = 'none'; return; }
+    slotsArea.style.display = 'block'; grid.innerHTML = ''; msg.style.display = 'block'; msg.textContent = 'Checking availability...';
+
+    try {
+        const res = await fetch(`${api()}/bookings/availability?service_id=${sid}&date=${date}&stylist_id=${stid}`);
+        const slots = await res.json();
+        if (!slots.length) { msg.textContent = 'No slots available.'; return; }
+        msg.style.display = 'none';
+        slots.forEach(slot => {
+            const timeLabel = new Date(slot.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const btn = document.createElement('button');
+            btn.type = 'button'; btn.className = 'time-chip'; btn.textContent = timeLabel;
+            btn.style.margin="5px"; btn.style.padding="10px"; btn.style.border="1px solid #ccc"; btn.style.background="white"; btn.style.cursor="pointer";
+            btn.onclick = () => selectTimeChip(btn, slot.start_time, timeLabel);
+            grid.appendChild(btn);
+        });
+    } catch(e) { msg.textContent = 'Error loading slots.'; }
+}
+
+function selectTimeChip(element, isoTime, timeLabel) {
+    document.querySelectorAll('.time-chip').forEach(el => { el.style.background="white"; el.style.color="black"; });
+    element.style.background="#6366f1"; element.style.color="white";
+    document.getElementById('bkStart').value = isoTime;
+    document.getElementById('bkServiceId').value = document.getElementById('bkSelectService').value;
+    document.getElementById('bkStylistId').value = document.getElementById('bkSelectStylist').value;
+    
+    const svcOpt = document.getElementById('bkSelectService').selectedOptions[0];
+    const stOpt = document.getElementById('bkSelectStylist').selectedOptions[0];
+    document.getElementById('sumService').textContent = svcOpt ? svcOpt.dataset.name : '';
+    document.getElementById('sumStylist').textContent = stOpt ? stOpt.dataset.name : '';
+    document.getElementById('sumTime').textContent = timeLabel;
+    
+    const actions = document.getElementById('bookingActions');
+    if(actions) { actions.style.display = 'block'; actions.scrollIntoView({behavior:"smooth"}); }
+}
+
+async function submitStreamlinedBooking() {
+    const start = document.getElementById('bkStart').value;
+    if (!start) { showToast("Select time", "warning"); return; }
+    const btn = document.querySelector('#booking button'); setLoading(btn, true);
+    if (isGuestMode) await createGuestBookingLogic(); else await createUserBookingLogic();
+    setLoading(btn, false);
+}
+
+async function createGuestBookingLogic() {
     const name = document.getElementById('bkGuestName').value;
     const email = document.getElementById('bkGuestEmail').value;
-
-    if(!name || !email) {
-        showToast("Guest must provide Name and Email", "error");
-        setLoading(btn, false);
-        return;
-    }
-
+    const phone = document.getElementById('bkGuestPhone').value;
+    if(!name || !email || !phone) { showToast("Missing Info", "error"); return; }
+    
+    const payload = {
+        service_id: parseInt(document.getElementById('bkServiceId').value),
+        stylist_id: parseInt(document.getElementById('bkStylistId').value),
+        start_time: document.getElementById('bkStart').value,
+        customer_name: name, customer_email: email, customer_phone: phone
+    };
     try {
-        const payload = {
-            service_id: parseInt(document.getElementById('bkServiceId').value),
-            stylist_id: parseInt(document.getElementById('bkStylistId').value),
-            start_time: document.getElementById('bkStart').value,
-            customer_name: name,
-            customer_email: email
-        };
-
-        const res = await fetch(api()+"/bookings/guest", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        
+        const res = await fetch(api()+"/bookings/guest", { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
         const data = await res.json();
-        
-        if(res.ok) {
-            showToast("Reserved! Please pay to confirm.", "warning"); // Màu vàng cảnh báo
-            // Tự động điền ID vào form thanh toán và cuộn tới đó
-            preparePayment(data.id); 
-        } else {
-            showToast("Booking Failed: " + (data.detail || "Error"), "error");
-        }
-
-    } catch(e) {
-        showToast("Network error", "error");
-    } finally {
-        setLoading(btn, false);
-    }
+        if(res.ok) { showToast("Reserved! Proceed to payment.", "success"); preparePayment(data.id); }
+        else showToast("Failed: "+data.detail, "error");
+    } catch(e) { showToast("Error", "error"); }
 }
 
-// 2. Cập nhật createUserBooking
-async function createUserBooking() {
-    if(!token) return showToast("Please login first or use Guest Mode", "error");
-    const btn = document.querySelector('#booking button[type="submit"]');
-    setLoading(btn, true, "Reserving...");
-
+async function createUserBookingLogic() {
+    if(!token) { showToast("Login first", "warning"); return; }
+    const payload = {
+        service_id: parseInt(document.getElementById('bkServiceId').value),
+        stylist_id: parseInt(document.getElementById('bkStylistId').value),
+        start_time: document.getElementById('bkStart').value
+    };
     try {
-        const res = await fetch(api()+"/bookings/", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+token },
+        const res = await fetch(api()+"/bookings/", { method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+token}, body:JSON.stringify(payload)});
+        const data = await res.json();
+        if(res.ok) { showToast("Reserved! Proceed to payment.", "success"); loadMyBookings(); preparePayment(data.id); }
+        else showToast("Failed", "error");
+    } catch(e) { showToast("Error", "error"); }
+}
+
+// --- PAYMENTS ---
+function preparePayment(id) {
+    document.querySelector('a[href="#my-bookings"]').click();
+    setTimeout(() => {
+        const input = document.getElementById('payBookingId');
+        if(input) { input.value = id; input.scrollIntoView({behavior:"smooth"}); }
+        
+        // Auto fill price
+        const svcSelect = document.getElementById('bkSelectService');
+        if(svcSelect && svcSelect.selectedIndex > 0) {
+             const price = svcSelect.options[svcSelect.selectedIndex].text.match(/\$(\d+)/);
+             if(price) document.getElementById('payAmount').value = price[1];
+        }
+    }, 100);
+}
+
+async function handlePayment(endpoint, btnText) {
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = "Processing..."; btn.disabled = true;
+    
+    try {
+        const id = document.getElementById('payBookingId').value;
+        const headers = { 'Content-Type': 'application/json' };
+        if(token) headers['Authorization'] = 'Bearer ' + token;
+
+        const res = await fetch(api()+`/bookings/${id}/${endpoint}`, {
+            method: 'POST', headers: headers,
             body: JSON.stringify({
-                service_id: parseInt(document.getElementById('bkServiceId').value),
-                stylist_id: parseInt(document.getElementById('bkStylistId').value),
-                start_time: document.getElementById('bkStart').value,
-            }),
+                amount: parseFloat(document.getElementById('payAmount').value) || 0,
+                card_number: document.getElementById('payCard').value,
+                expiry_month: 12, expiry_year: 2099, cvv: "123", cardholder_name: "Alice"
+            })
         });
-        const data = await res.json();
-        
+
+        const txt = await res.text();
         if(res.ok) {
-            showToast("Reserved! Please pay to confirm.", "warning");
-            loadMyBookings(); 
-            // Chuyển sang tab My Bookings hoặc Payment
-            preparePayment(data.id);
+            document.getElementById('payOut').innerHTML = `<span style="color:green; font-weight:bold;">${btnText} Successful! Booking Confirmed.</span>`;
+            showToast("Success!", "success");
+            if(token) loadMyBookings();
         } else {
-            showToast("Booking failed: " + (data.detail || "Error"), "error");
+            document.getElementById('payOut').textContent = "Error: " + txt;
+            showToast("Failed", "error");
         }
-    } finally { setLoading(btn, false); }
+    } catch(e) { showToast("Network Error", "error"); } 
+    finally { btn.textContent = originalText; btn.disabled = false; }
 }
 
-// Hàm hỗ trợ: Điền thông tin vào form thanh toán và chuyển view
-function preparePayment(bookingId) {
-    // Chuyển sang view My Bookings (nơi có form thanh toán)
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById('my-bookings').classList.add('active');
-    
-    // Điền ID
-    document.getElementById('payBookingId').value = bookingId;
-    
-    // Scroll xuống form thanh toán
-    document.getElementById('payBookingId').scrollIntoView({behavior: "smooth"});
-    showToast("Enter card details to confirm Booking #" + bookingId, "info");
-}
+function payFull() { handlePayment('pay', 'Full Payment'); }
+function payDeposit() { handlePayment('pay-deposit', 'Deposit'); }
 
-// --- MY BOOKINGS (Cập nhật hiển thị nút Pay) ---
+function showToast(msg, type='success'){ 
+    let t = document.getElementById('toast'); if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t);}
+    t.className='toast show '+type; t.textContent=msg; setTimeout(()=>t.className='toast',3000); 
+}
+function setLoading(btn, l){ if(btn){ if(l){btn.dataset.tx=btn.innerText;btn.innerText="..."}else{btn.innerText=btn.dataset.tx||"Submit"} btn.disabled=l; } }
 async function loadMyBookings(){
-    if(!token) {
-        document.getElementById('myBookingsList').innerHTML = '<p style="color:red">Please login to view bookings.</p>';
-        return;
-    }
-    
+    if(!token) return;
     try {
-        const res = await fetch(api()+"/bookings/me", {
-            headers: { 'Authorization': 'Bearer '+token }
-        });
-        if(!res.ok) throw new Error("Failed to fetch");
-        
+        const res = await fetch(api()+"/bookings/me", { headers:{'Authorization':'Bearer '+token} });
         const data = await res.json();
-        const container = document.getElementById('myBookingsList');
-        container.innerHTML = "";
-        
-        if(data.length === 0) {
-            container.innerHTML = "<p>No bookings found.</p>";
-            return;
-        }
-
-        const table = document.createElement('table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        table.innerHTML = `
-            <tr style="background:#eee; text-align:left;">
-                <th style="padding:8px;">ID</th>
-                <th>Service</th>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Action</th>
-            </tr>
-        `;
-        
-        data.forEach(bk => {
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid #ddd';
-            
-            // Logic hiển thị Badge trạng thái
-            let statusColor = '#fee2e2'; // Red (Cancel/Failed)
-            let statusText = '#991b1b';
-            if (bk.status === 'confirmed') { statusColor = '#d1fae5'; statusText = '#065f46'; } // Green
-            else if (bk.status === 'pending') { statusColor = '#fef3c7'; statusText = '#92400e'; } // Yellow
-            
-            // Logic nút Action
-            let actionHtml = '-';
-            if (bk.status === 'pending') {
-                // Nút Pay cho Pending
-                actionHtml = `
-                    <button onclick="preparePayment(${bk.id})" style="background:#f59e0b; color:white; padding:4px 8px; font-size:0.8em; border:none; border-radius:4px; cursor:pointer; margin-right:4px;">Pay</button>
-                    <button onclick="cancelBooking(${bk.id})" style="background:#ef4444; color:white; padding:4px 8px; font-size:0.8em; border:none; border-radius:4px; cursor:pointer;">Cancel</button>
-                `;
-            } else if (bk.status === 'confirmed') {
-                actionHtml = `<button onclick="cancelBooking(${bk.id})" style="background:#ef4444; color:white; padding:4px 8px; font-size:0.8em; border:none; border-radius:4px; cursor:pointer;">Cancel</button>`;
-            }
-
-            tr.innerHTML = `
-                <td style="padding:8px;">#${bk.id}</td>
-                <td>${bk.service_id}</td>
-                <td>${new Date(bk.start_time).toLocaleString()}</td>
-                <td>
-                    <span style="
-                        padding:2px 6px; border-radius:4px; font-size:0.8em;
-                        background:${statusColor}; color:${statusText}; font-weight:bold;
-                    ">${bk.status.toUpperCase()}</span>
-                </td>
-                <td>${actionHtml}</td>
-            `;
-            table.appendChild(tr);
-        });
-        container.appendChild(table);
-        
-    } catch(e) {
-        document.getElementById('myBookingsList').textContent = "Error loading bookings.";
-    }
+        document.getElementById('myBookingsList').innerHTML = data.length ? 
+            `<table>${data.map(b=>`<tr><td>#${b.id}</td><td>${b.status}</td><td>${b.status==='pending'?`<button onclick="preparePayment(${b.id})">Pay</button>`:''}</td></tr>`).join('')}</table>` 
+            : 'No bookings';
+    } catch(e){}
 }
-
-// ... (Các hàm cancelBooking, payBooking, createService giữ nguyên) ...
-// (Lưu ý: payBooking cần cập nhật UI nếu thành công thì reload list để thấy trạng thái chuyển sang Confirmed)
-
-async function payBooking(evt){
-  evt && evt.preventDefault();
-  const btn = evt.target.querySelector('button');
-  setLoading(btn, true, "Processing Payment...");
-  
-  try {
-      const id = document.getElementById('payBookingId').value;
-      const res = await fetch(api()+`/bookings/${id}/pay`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+token },
-        body: JSON.stringify({
-          amount: parseFloat(document.getElementById('payAmount').value),
-          card_number: document.getElementById('payCard').value,
-          expiry_month: parseInt(document.getElementById('payMonth').value),
-          expiry_year: parseInt(document.getElementById('payYear').value),
-          cvv: document.getElementById('payCVV').value,
-          cardholder_name: document.getElementById('payName').value,
-        }),
-      });
-      const txt = await res.text();
-      document.getElementById('payOut').textContent = txt;
-      
-      if(res.ok) {
-          showToast("Payment Successful! Booking Confirmed.", "success");
-          loadMyBookings(); // Tải lại danh sách để thấy status đổi thành CONFIRMED
-      }
-      else showToast("Payment Failed: " + txt, "error");
-      
-  } catch(e) {
-      showToast("Network Error", "error");
-  } finally { setLoading(btn, false); }
-}
+async function listServices(){ const res=await fetch(api()+"/services/"); const d=await res.json(); document.getElementById('servicesList').innerHTML=d.map(s=>`<div class="card"><h4>${s.name}</h4><p>$${s.price}</p></div>`).join(''); }
+async function listStylists(){ const res=await fetch(api()+"/stylists/"); const d=await res.json(); document.getElementById('stylistsList').innerHTML=d.map(s=>`<div class="stylist-card"><h4>${s.display_name}</h4></div>`).join(''); }
+window.cancelBooking = async (id) => { if(confirm("Cancel?")) { await fetch(api()+`/bookings/${id}/cancel`, {method:'PUT', headers:{'Authorization':'Bearer '+token}}); loadMyBookings(); } };

@@ -3,7 +3,6 @@ from datetime import datetime, date, time
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 
-# Users
 class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
@@ -23,7 +22,6 @@ class UserOut(BaseModel):
     class Config:
         from_attributes = True
 
-# Services
 class ServiceBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -46,24 +44,30 @@ class ServiceOut(ServiceBase):
     class Config:
         from_attributes = True
 
-# Stylists
 class StylistOut(BaseModel):
     id: int
     display_name: str
     bio: Optional[str] = None
-    start_hour: int  # <-- Mới thêm
-    end_hour: int    # <-- Mới thêm
+    start_hour: int
+    end_hour: int
     class Config:
         from_attributes = True
 
-# Class mới để update stylist
 class StylistUpdate(BaseModel):
     display_name: Optional[str] = None
     bio: Optional[str] = None
     start_hour: Optional[int] = None
     end_hour: Optional[int] = None
 
-# Booking
+class StylistCreateFull(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+    full_name: str
+    display_name: str
+    bio: Optional[str] = None
+    start_hour: int = 9
+    end_hour: int = 20
+
 class BookingCreate(BaseModel):
     service_id: int
     stylist_id: Optional[int] = None
@@ -75,6 +79,7 @@ class WalkinBookingCreate(BaseModel):
     start_time: datetime
     customer_name: str
     customer_email: Optional[EmailStr] = None
+    customer_phone: Optional[str] = None
 
 class AvailabilityQuery(BaseModel):
     service_id: int
@@ -94,10 +99,10 @@ class BookingOut(BaseModel):
     end_time: datetime
     status: str
     is_walkin: bool
+    customer_phone: Optional[str] = None
     class Config:
         from_attributes = True
 
-# Payments
 class PaymentRequest(BaseModel):
     amount: float
     card_number: str
@@ -115,7 +120,6 @@ class PaymentOut(BaseModel):
     class Config:
         from_attributes = True
 
-# Tokens
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

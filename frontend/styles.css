@@ -8,7 +8,7 @@
   --success: #10b981;
   --danger: #ef4444;
   --warning: #f59e0b;
-  --bg-body: #f3f4f6; /* Light Gray Background */
+  --bg-body: #f3f4f6;
   --bg-card: #ffffff;
   --text-main: #111827;
   --text-muted: #6b7280;
@@ -42,7 +42,7 @@ body {
 
 .grid-three {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 24px;
 }
 
@@ -66,6 +66,9 @@ body {
 .brand { font-size: 1.25rem; font-weight: 700; color: var(--primary); text-decoration: none; }
 
 .nav { display: flex; gap: 4px; }
+.nav-link { display: none; } /* Guard: Hidden by default */
+.nav-link.visible { display: block; }
+
 .nav a {
   text-decoration: none; color: var(--text-muted); font-weight: 500;
   padding: 8px 16px; border-radius: var(--radius); transition: all 0.2s;
@@ -104,8 +107,9 @@ input, select, textarea {
   width: 100%; padding: 10px 12px;
   border: 1px solid var(--border); border-radius: var(--radius);
   font-size: 1rem; transition: border 0.2s;
+  background-color: white;
 }
-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
 
 /* Tables */
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -119,21 +123,58 @@ tr:last-child td { border-bottom: none; }
 .badge.pending { background: #fef3c7; color: #92400e; }
 .badge.cancelled, .badge.failed { background: #fee2e2; color: #991b1b; }
 
-/* Slots & Stylist Cards */
-.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; margin-top: 10px; }
-.slot-btn { padding: 8px; border: 1px solid var(--border); background: #fff; text-align: center; border-radius: var(--radius); cursor: pointer; font-size: 0.9rem; }
-.slot-btn:hover { border-color: var(--primary); color: var(--primary); }
-.slot-btn.selected { background: var(--primary); color: white; border-color: var(--primary); }
+/* --- TIME SLOT CHIPS (MỚI) --- */
+.time-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
 
+.time-chip {
+    padding: 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #475569;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.time-chip:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.time-chip.selected {
+    background-color: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+}
+
+.booking-summary {
+    background: #f0fdf4; /* Light Green */
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    padding: 16px;
+    border-radius: 8px;
+    margin-top: 20px;
+    animation: fadeIn 0.3s;
+}
+
+/* Stylist Cards */
 .stylist-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 12px; }
 .stylist-card {
   border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); cursor: pointer; transition: all 0.2s;
   background: white; text-align: center;
 }
 .stylist-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.stylist-card.active { border: 2px solid var(--primary); background: #eef2ff; }
-.stylist-card h4 { margin: 0; color: var(--text-main); font-size: 1rem; }
-.stylist-card small { color: var(--text-muted); }
 
 /* Toast */
 .toast {
@@ -145,8 +186,6 @@ tr:last-child td { border-bottom: none; }
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 .toast.show { visibility: visible; opacity: 1; bottom: 50px; }
-.toast.success { background-color: var(--success); }
-.toast.error { background-color: var(--danger); }
 
 /* Utility */
 .text-center { text-align: center; }

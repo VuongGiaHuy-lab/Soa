@@ -5,11 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import schemas, models
-from ..deps import get_current_user, RequireOwner
+from ..deps import get_current_user, RequireOwner, RequireStylist
 from ..email_utils import send_email
 from ..payment import luhn_checksum, mask_card, validate_expiry
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
+
+DEPOSIT_PERCENTAGE = 0.30
 
 def get_service(db: Session, service_id: int) -> models.Service:
     svc = db.get(models.Service, service_id)
@@ -18,8 +20,6 @@ def get_service(db: Session, service_id: int) -> models.Service:
     return svc
 
 def is_overlapping(db: Session, stylist_id: int, start: datetime, end: datetime, exclude_booking_id: Optional[int] = None) -> bool:
-    # Logic: Các lịch PENDING và CONFIRMED đều được coi là đã chiếm chỗ
-    # Để tránh việc người khác đặt chồng lên khi người trước chưa kịp thanh toán
     q = db.query(models.Booking).filter(
         models.Booking.stylist_id == stylist_id,
         models.Booking.status.in_([models.BookingStatus.CONFIRMED.value, models.BookingStatus.PENDING.value]),
@@ -49,7 +49,6 @@ def availability(service_id: int, date: date_type, stylist_id: int = Query(...),
         current += timedelta(minutes=60)
     return slots
 
-# --- CREATE BOOKING (Thành viên) ---
 @router.post("/", response_model=schemas.BookingOut)
 def create_booking(payload: schemas.BookingCreate, user=Depends(get_current_user), db: Session = Depends(get_db)):
     try:
@@ -60,9 +59,12 @@ def create_booking(payload: schemas.BookingCreate, user=Depends(get_current_user
         if not payload.stylist_id:
             raise HTTPException(status_code=400, detail="Stylist selection is required")
 
-        # Transaction Check: Kiểm tra trùng lặp ngay trước khi insert
         if is_overlapping(db, payload.stylist_id, start, end):
             raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
+            
+        # --- LOGIC TÍNH GIÁ MỚI ---
+        current_price = svc.price
+        # --------------------------
 
         booking = models.Booking(
             customer_id=user.id,
@@ -70,18 +72,19 @@ def create_booking(payload: schemas.BookingCreate, user=Depends(get_current_user
             stylist_id=payload.stylist_id,
             start_time=start,
             end_time=end,
-            status=models.BookingStatus.PENDING.value, # <--- QUAN TRỌNG: Chỉ là PENDING
+            status=models.BookingStatus.PENDING.value,
+            
+            service_price_snapshot=current_price, # <-- LƯU VẾT GIÁ
+            total_amount=current_price,          # <-- LƯU TỔNG TIỀN
         )
         db.add(booking)
-        db.commit() # Commit transaction tạo booking
+        db.commit()
         db.refresh(booking)
         return booking
-        
     except Exception as e:
-        db.rollback() # Rollback nếu có lỗi
+        db.rollback()
         raise e
 
-# --- CREATE GUEST BOOKING (Khách vãng lai) ---
 @router.post("/guest", response_model=schemas.BookingOut)
 def create_guest_booking(payload: schemas.WalkinBookingCreate, db: Session = Depends(get_db)):
     try:
@@ -98,28 +101,35 @@ def create_guest_booking(payload: schemas.WalkinBookingCreate, db: Session = Dep
 
         if is_overlapping(db, payload.stylist_id, start, end):
             raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
+            
+        # --- LOGIC TÍNH GIÁ MỚI ---
+        current_price = svc.price
+        # --------------------------
 
         booking = models.Booking(
             customer_id=None, 
             customer_name=payload.customer_name,
             customer_email=payload.customer_email,
+            customer_phone=payload.customer_phone,
             service_id=svc.id,
             stylist_id=payload.stylist_id,
             start_time=start,
             end_time=end,
-            status=models.BookingStatus.PENDING.value, # <--- QUAN TRỌNG: PENDING
+            status=models.BookingStatus.PENDING.value,
             is_walkin=False,
+            
+            service_price_snapshot=current_price, # <-- LƯU VẾT GIÁ
+            total_amount=current_price,          # <-- LƯU TỔNG TIỀN
         )
         db.add(booking)
         db.commit()
         db.refresh(booking)
         
-        # Gửi email nhắc thanh toán
         if payload.customer_email:
             send_email(
                 payload.customer_email, 
                 "Booking Reserved - Payment Required", 
-                f"Your booking #{booking.id} is reserved. Please complete payment to confirm."
+                f"Hello {payload.customer_name},\n\nYour booking #{booking.id} is reserved. Please pay deposit to confirm."
             )
 
         return booking
@@ -127,7 +137,6 @@ def create_guest_booking(payload: schemas.WalkinBookingCreate, db: Session = Dep
         db.rollback()
         raise e
 
-# --- WALK-IN (Owner tạo - Được phép Confirm luôn vì thu tiền mặt tại quầy) ---
 @router.post("/walkin", response_model=schemas.BookingOut, dependencies=[Depends(RequireOwner)])
 def create_walkin(payload: schemas.WalkinBookingCreate, db: Session = Depends(get_db)):
     try:
@@ -138,18 +147,38 @@ def create_walkin(payload: schemas.WalkinBookingCreate, db: Session = Depends(ge
         if is_overlapping(db, payload.stylist_id, start, end):
             raise HTTPException(status_code=409, detail="Stylist is unavailable")
             
+        # --- LOGIC TÍNH GIÁ MỚI ---
+        current_price = svc.price
+        # --------------------------
+
         booking = models.Booking(
             customer_id=None,
             customer_name=payload.customer_name,
             customer_email=payload.customer_email,
+            customer_phone=payload.customer_phone,
             service_id=svc.id,
             stylist_id=payload.stylist_id,
             start_time=start,
             end_time=end,
-            status=models.BookingStatus.CONFIRMED.value, # Walk-in tại quầy được confirm luôn
-            is_walkin=True, 
+            status=models.BookingStatus.CONFIRMED.value,
+            is_walkin=True,
+            
+            service_price_snapshot=current_price, # <-- LƯU VẾT GIÁ
+            total_amount=current_price,          # <-- LƯU TỔNG TIỀN
         )
         db.add(booking)
+        db.flush()
+
+        # TỰ ĐỘNG TẠO PAYMENT (CASH)
+        payment = models.Payment(
+            booking_id=booking.id,
+            amount=current_price,
+            status=models.PaymentStatus.SUCCESS.value,
+            provider="cash_pos",
+            masked_details="Walk-in Cash"
+        )
+        db.add(payment)
+
         db.commit()
         db.refresh(booking)
         return booking
@@ -191,80 +220,129 @@ def my_bookings(user=Depends(get_current_user), db: Session = Depends(get_db)):
     q = db.query(models.Booking).filter(models.Booking.customer_id == user.id)
     return q.order_by(models.Booking.start_time.desc()).all()
 
-# --- PAY BOOKING (Xử lý Transaction Thanh toán) ---
+@router.get("/stylist-schedule", response_model=List[schemas.BookingOut], dependencies=[Depends(RequireStylist)])
+def stylist_schedule(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    stylist = db.query(models.Stylist).filter(models.Stylist.user_id == user.id).first()
+    if not stylist:
+        raise HTTPException(status_code=404, detail="Stylist profile not found")
+    
+    return db.query(models.Booking).filter(
+        models.Booking.stylist_id == stylist.id
+    ).order_by(models.Booking.start_time.desc()).all()
+
+# --- HELPER GỬI MAIL ---
+def send_confirmation_email(booking, payment, paid_amount, note, db, bg_tasks):
+    recipient_email = booking.customer_email
+    customer_name = booking.customer_name or "Valued Customer"
+    if not recipient_email and booking.customer_id:
+        u = db.query(models.User).get(booking.customer_id)
+        if u: recipient_email = u.email; customer_name = u.full_name or customer_name
+
+    if recipient_email:
+        appt_time = booking.start_time.strftime("%A, %d %B %Y at %I:%M %p")
+        pay_time = datetime.now().strftime("%I:%M %p")
+        
+        body = (
+            f"Hello {customer_name},\n\n"
+            f"Booking Confirmed! ✅\n"
+            f"{note}\n\n"
+            f"--- Details ---\n"
+            f"📅 Appointment: {appt_time}\n"
+            f"💵 Amount Paid Now: ${paid_amount:.2f}\n"
+            f"🕒 Payment Time: {pay_time}\n"
+            f"🆔 Booking ID: #{booking.id}\n"
+            f"💰 Total Price: ${booking.total_amount:.2f}\n" # Thêm tổng tiền
+            f"\nSee you soon!\nSalon Luxury"
+        )
+        bg_tasks.add_task(send_email, recipient_email, "Booking Confirmed", body)
+
+# --- 1. PAY FULL (Online) ---
 @router.post("/{booking_id}/pay", response_model=schemas.PaymentOut)
 def pay_booking(
     booking_id: int, 
     payload: schemas.PaymentRequest, 
     background_tasks: BackgroundTasks,
-    user=Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
     try:
         booking = db.query(models.Booking).get(booking_id)
         if not booking:
             raise HTTPException(status_code=404, detail="Booking not found")
-        
-        # Kiểm tra quyền: Owner được thanh toán hộ, Customer chỉ thanh toán của mình
-        if user.role != models.Role.OWNER.value:
-            if booking.customer_id and booking.customer_id != user.id:
-                raise HTTPException(status_code=403, detail="Not yours")
 
-        if booking.status == models.BookingStatus.CANCELLED.value:
-            raise HTTPException(status_code=400, detail="Booking cancelled")
-        
-        # Nếu đã confirm rồi thì không cần thanh toán lại (trừ khi muốn thanh toán thêm - logic nâng cao)
-        if booking.status == models.BookingStatus.CONFIRMED.value:
-             # Kiểm tra xem đã có payment thành công chưa
-             existing_pay = db.query(models.Payment).filter(
-                 models.Payment.booking_id == booking.id, 
-                 models.Payment.status == models.PaymentStatus.SUCCESS.value
-             ).first()
-             if existing_pay:
-                 return existing_pay
+        # Kiểm tra xem đã trả hết tiền chưa
+        if booking.total_amount <= db.query(func.sum(models.Payment.amount)).filter(models.Payment.booking_id == booking_id, models.Payment.status == models.PaymentStatus.SUCCESS.value).scalar() or 0:
+            raise HTTPException(status_code=400, detail="Booking already fully paid")
 
-        # Validate thẻ (Giả lập)
         if not luhn_checksum(payload.card_number) or not validate_expiry(payload.expiry_month, payload.expiry_year):
             raise HTTPException(status_code=400, detail="Invalid payment details")
 
-        amount = db.query(models.Service).get(booking.service_id).price
+        # Lấy số tiền còn thiếu (để trả full)
+        remaining_to_pay = booking.total_amount - (db.query(func.sum(models.Payment.amount)).filter(models.Payment.booking_id == booking_id, models.Payment.status == models.PaymentStatus.SUCCESS.value).scalar() or 0)
         
-        # 1. Tạo bản ghi Payment
-        payment = db.query(models.Payment).filter(models.Payment.booking_id == booking.id).first()
-        if not payment:
-            payment = models.Payment(booking_id=booking.id, amount=amount)
-            db.add(payment)
-            db.flush() # Flush để lấy ID payment nhưng chưa commit
+        # Nếu payload.amount không khớp, ta sẽ lấy số tiền còn thiếu
+        amount_to_charge = remaining_to_pay
 
-        # 2. Cập nhật trạng thái Payment
-        payment.status = models.PaymentStatus.SUCCESS.value
-        payment.masked_details = mask_card(payload.card_number)
-        payment.provider = "mock"
+        payment = models.Payment(
+            booking_id=booking.id, 
+            amount=amount_to_charge, 
+            status=models.PaymentStatus.SUCCESS.value,
+            provider="mock_full",
+            masked_details=mask_card(payload.card_number)
+        )
+        db.add(payment)
         
-        # 3. Cập nhật trạng thái Booking -> CONFIRMED
         booking.status = models.BookingStatus.CONFIRMED.value
-
-        # 4. Commit Transaction (Cả Payment và Booking cùng lúc)
         db.commit()
         db.refresh(payment)
 
-        # Gửi email receipt
-        email_to = user.email if booking.customer_id else booking.customer_email
-        if email_to:
-            body_content = (
-                f"Payment Successful!\n\n"
-                f"Booking ID: {booking.id}\n"
-                f"Status: CONFIRMED\n"
-                f"Amount: ${amount:.2f}\n"
-            )
-            background_tasks.add_task(
-                send_email,
-                to_email=email_to,
-                subject="Payment Receipt & Booking Confirmation",
-                body=body_content
-            )
-
+        send_confirmation_email(booking, payment, amount_to_charge, "Full Payment Received", db, background_tasks)
         return payment
     except Exception as e:
-        db.rollback() # Rollback toàn bộ nếu lỗi
+        db.rollback()
+        raise e
+
+# --- 2. PAY DEPOSIT (Cọc 30%) ---
+@router.post("/{booking_id}/pay-deposit", response_model=schemas.PaymentOut)
+def pay_deposit(
+    booking_id: int, 
+    payload: schemas.PaymentRequest, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    try:
+        booking = db.query(models.Booking).get(booking_id)
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+
+        # Kiểm tra xem đã trả cọc/full rồi chưa
+        if db.query(models.Payment).filter(models.Payment.booking_id == booking_id, models.Payment.status == models.PaymentStatus.SUCCESS.value).first():
+            raise HTTPException(status_code=400, detail="Deposit/Full payment already received.")
+
+        if not luhn_checksum(payload.card_number) or not validate_expiry(payload.expiry_month, payload.expiry_year):
+            raise HTTPException(status_code=400, detail="Invalid payment details")
+
+        # Tính tiền cọc
+        deposit_amount = round(booking.total_amount * DEPOSIT_PERCENTAGE, 2)
+        remaining = round(booking.total_amount - deposit_amount, 2)
+
+        # Ghi nhận thanh toán CỌC
+        payment = models.Payment(
+            booking_id=booking.id, 
+            amount=deposit_amount, 
+            status=models.PaymentStatus.SUCCESS.value,
+            provider="mock_deposit",
+            masked_details=mask_card(payload.card_number) + f" (Deposit {DEPOSIT_PERCENTAGE*100:.0f}%)"
+        )
+        db.add(payment)
+        
+        booking.status = models.BookingStatus.CONFIRMED.value
+        db.commit()
+        db.refresh(payment)
+
+        note = f"Deposit Paid ({DEPOSIT_PERCENTAGE*100:.0f}%). Remaining balance ${remaining:.2f} due at salon."
+        send_confirmation_email(booking, payment, deposit_amount, note, db, background_tasks)
+        
+        return payment
+    except Exception as e:
+        db.rollback()
         raise e

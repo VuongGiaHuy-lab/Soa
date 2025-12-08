@@ -3,16 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin Dashboard</title>
+  <title>Admin Dashboard - Salon Booking</title>
   <link rel="stylesheet" href="/static/styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Admin specific styles */
+    .admin-header { background: #1e293b; border-bottom: none; }
+    .admin-header .brand { color: white; }
+    .admin-header .nav a { color: #cbd5e1; }
+    .admin-header .nav a:hover { color: white; background: rgba(255,255,255,0.1); }
+    
+    /* Modal Styles */
+    .modal-overlay {
+        display: none;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center; justify-content: center;
+        backdrop-filter: blur(2px);
+    }
+    .modal-overlay.active { display: flex; animation: fadeIn 0.2s; }
+    .modal-card { width: 450px; max-width: 90%; }
+  </style>
 </head>
-<body>
-  <header class="site-header" style="background: #1e293b; border-bottom: none;">
+<body style="background-color: #f1f5f9;">
+  
+  <header class="site-header admin-header">
     <div class="container">
-      <h1 class="brand" style="color:white;">🛡️ Admin Portal</h1>
+      <h1 class="brand">🛡️ Admin Portal</h1>
       <nav class="nav">
-        <a href="/" style="color:#cbd5e1;">Exit to Shop</a>
+        <a href="/">Exit to Shop</a>
       </nav>
     </div>
   </header>
@@ -25,88 +45,162 @@
             <h3>Manage Services</h3>
             <form onsubmit="createService(event)">
                 <div class="grid-two">
-                    <div><label>Name</label><input id="svcName" value="Premium Cut" required></div>
+                    <div><label>Service Name</label><input id="svcName" value="Premium Cut" required></div>
                     <div><label>Price ($)</label><input id="svcPrice" type="number" value="50" required></div>
                 </div>
                 <div class="grid-two">
                     <div><label>Duration (min)</label><input id="svcDur" type="number" value="60" required></div>
-                    <div><label>Desc</label><input id="svcDesc" value="Full styling"></div>
+                    <div><label>Description</label><input id="svcDesc" value="Full styling"></div>
                 </div>
-                <button type="submit" class="mt-4" style="width:100%">Add Service</button>
+                <button type="submit" class="mt-4" style="width:100%">Add New Service</button>
                 <div id="svcOut" class="text-muted mt-4"></div>
             </form>
         </div>
 
         <div class="card">
-            <h3>Registered Users</h3>
-            <div class="card-actions"><button class="secondary" onclick="listUsers()">Refresh</button></div>
-            <div id="usersOut" style="max-height: 250px; overflow-y: auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3>Registered Users</h3>
+                <button class="secondary" onclick="listUsers()" style="padding:6px 12px; font-size:0.8rem;">Refresh</button>
+            </div>
+            <div id="usersOut" style="max-height: 250px; overflow-y: auto; font-size: 0.9rem;">
                 <p class="text-muted">Click refresh to load users.</p>
             </div>
         </div>
     </div>
 
+    <div class="card mt-4" style="border-left: 4px solid var(--primary);">
+        <h3>✨ Add New Stylist (Create Account)</h3>
+        <p class="text-muted">Create a new user account and assign them as a stylist immediately.</p>
+        <form onsubmit="createNewStylist(event)">
+            <div class="grid-three">
+                <div>
+                    <label>Full Name</label>
+                    <input id="newStFullName" required placeholder="Ex: Jessica Doe">
+                </div>
+                <div>
+                    <label>Email (Login)</label>
+                    <input id="newStEmail" type="email" required placeholder="jessica@salon.local">
+                </div>
+                <div>
+                    <label>Password</label>
+                    <input id="newStPass" type="password" required minlength="8" placeholder="********">
+                </div>
+            </div>
+            <div class="grid-three">
+                <div>
+                    <label>Display Name</label>
+                    <input id="newStName" required placeholder="Ex: Jessica">
+                </div>
+                <div>
+                    <label>Start Hour</label>
+                    <input id="newStStart" type="number" value="9" min="0" max="23" required>
+                </div>
+                <div>
+                    <label>End Hour</label>
+                    <input id="newStEnd" type="number" value="20" min="0" max="23" required>
+                </div>
+            </div>
+            <div>
+                <label>Bio</label>
+                <input id="newStBio" placeholder="Expert Colorist & Stylist">
+            </div>
+            <button type="submit" class="mt-4" style="width:100%">Create Stylist Account</button>
+        </form>
+    </div>
+
     <div class="card mt-4">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>Stylist Team</h3>
-            <button class="secondary" onclick="loadManageStylists()">Refresh Team</button>
+            <h3>Stylist Team Management</h3>
+            <button class="secondary" onclick="loadManageStylists()">Refresh List</button>
         </div>
         <div id="manageStylistList" class="stylist-cards">Loading...</div>
     </div>
 
     <div class="card mt-4">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>All Bookings</h3>
-            <button class="secondary" id="load-all-bookings">Refresh Bookings</button>
+            <h3>All System Bookings</h3>
+            <button class="secondary" id="load-all-bookings" onclick="loadAllBookings()">Refresh Bookings</button>
         </div>
-        <div id="allBookingsTable" style="overflow-x: auto; margin-top:16px;"></div>
+        <div id="allBookingsTable" style="overflow-x: auto; margin-top:16px;">
+            <p class="text-muted">Loading bookings...</p>
+        </div>
     </div>
 
     <div class="card mt-4" style="border: 2px solid var(--primary);">
-        <h3 style="color:var(--primary);">POS - Walk-in Booking</h3>
-        <p class="text-muted">Use this to book for customers at the counter.</p>
+        <h3 style="color:var(--primary); display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.5rem;">🖥️</span> POS - Create Walk-in Booking
+        </h3>
+        <p class="text-muted">Use this panel to book appointments for customers directly at the salon counter.</p>
         
         <form onsubmit="createWalkin(event)" class="mt-4">
             <div class="grid-three">
                 <div>
-                    <label>1. Service</label>
-                    <div id="walkinServiceList" style="max-height:150px; overflow-y:auto; border:1px solid var(--border); padding:8px; border-radius:var(--radius);">
+                    <label>1. Select Service</label>
+                    <div id="walkinServiceList" style="max-height:180px; overflow-y:auto; border:1px solid var(--border); padding:8px; border-radius:var(--radius); background:#f9fafb;">
                         <button type="button" class="secondary" onclick="loadServices(event)" style="width:100%">Load Services</button>
                     </div>
                 </div>
                 <div>
-                    <label>2. Stylist</label>
-                    <div id="walkinStylistList" style="max-height:150px; overflow-y:auto; border:1px solid var(--border); padding:8px; border-radius:var(--radius);">
+                    <label>2. Select Stylist</label>
+                    <div id="walkinStylistList" style="max-height:180px; overflow-y:auto; border:1px solid var(--border); padding:8px; border-radius:var(--radius); background:#f9fafb;">
                         <button type="button" class="secondary" onclick="loadStylists(event)" style="width:100%">Load Stylists</button>
                     </div>
                 </div>
                 <div>
                     <label>3. Date & Time</label>
-                    <input type="date" id="walkin-date" />
-                    <button type="button" id="walkin-load-slots" class="secondary mt-4" style="width:100%">Find Slots</button>
+                    <input type="date" id="walkin-date" style="margin-bottom:10px;" />
+                    <button type="button" id="walkin-load-slots" class="secondary" style="width:100%">Find Available Slots</button>
                 </div>
             </div>
 
             <div id="walkin-slots" class="slot-grid mt-4"></div>
-            <div id="walkin-selected-slot" class="badge confirmed mt-4" style="display:none;"></div>
+            <div id="walkin-selected-slot" class="badge confirmed mt-4" style="display:none; font-size:1rem;"></div>
 
             <div class="grid-two mt-4" style="border-top:1px solid var(--border); padding-top:16px;">
-                <div><label>Customer Name</label><input id="walkinName" required placeholder="Guest Name"></div>
-                <div><label>Email (Optional)</label><input id="walkinEmail"></div>
+                <div>
+                    <label>Customer Name</label>
+                    <input id="walkinName" required placeholder="Guest Name">
+                </div>
+                <div>
+                    <label>Email (Optional)</label>
+                    <input id="walkinEmail" placeholder="For receipt...">
+                </div>
             </div>
 
             <input id="walkinServiceId" type="hidden">
             <input id="walkinStylistId" type="hidden">
 
-            <div style="background:#f1f5f9; padding:16px; margin-top:16px; border-radius:var(--radius);">
+            <div style="background:#e0e7ff; padding:16px; margin-top:20px; border-radius:var(--radius); color:#3730a3;">
                 <strong>Summary:</strong> <span id="walkinConfirmService">-</span> with <span id="walkinConfirmStylist">-</span> at <span id="walkinConfirmStart">-</span>
             </div>
 
-            <button type="submit" class="mt-4" style="width:100%; font-size:1.1rem;">Confirm Walk-in</button>
-            <div id="walkinOut"></div>
+            <button type="submit" class="mt-4" style="width:100%; font-size:1.1rem; padding:12px;">Confirm & Create Booking</button>
+            <div id="walkinOut" class="mt-2"></div>
         </form>
     </div>
   </main>
+
+  <div id="editModal" class="modal-overlay">
+      <div class="card modal-card">
+          <h3 style="margin-top:0;">Edit Stylist Profile</h3>
+          <form onsubmit="submitEditStylist(event)">
+              <input type="hidden" id="editId">
+              <label>Display Name</label>
+              <input id="editName" required>
+              <label>Bio</label>
+              <textarea id="editBio" rows="3" style="width:100%; border:1px solid var(--border); border-radius:var(--radius); padding:10px; font-family:inherit;"></textarea>
+              <div class="grid-two">
+                  <div><label>Start Hour (0-23)</label><input id="editStart" type="number" min="0" max="23" required></div>
+                  <div><label>End Hour (0-23)</label><input id="editEnd" type="number" min="0" max="23" required></div>
+              </div>
+              <div class="grid-two mt-4">
+                  <button type="button" class="secondary" onclick="closeEditModal()">Cancel</button>
+                  <button type="submit">Save Changes</button>
+              </div>
+          </form>
+      </div>
+  </div>
+
   <script src="/static/admin.js"></script>
 </body>
 </html>

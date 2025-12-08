@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stylist Portal - Salon Booking</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .header-stylist { background: #4f46e5; color: white; }
+    .header-stylist .nav a { color: #e0e7ff; text-decoration: none; }
+    .header-stylist .nav a:hover { color: white; }
+  </style>
+</head>
+<body style="background-color: #f8fafc;">
+  
+  <header class="site-header header-stylist">
+    <div class="container">
+      <h1 class="brand" style="color:white;">✂️ Stylist Portal</h1>
+      <nav class="nav">
+        <a href="#" onclick="logout()">Logout</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="toast"></div>
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>My Schedule</h3>
+            <button class="secondary" onclick="loadSchedule()">Refresh</button>
+        </div>
+        
+        <div id="scheduleTable" style="overflow-x: auto; margin-top:16px;">
+            <p class="text-muted">Loading schedule...</p>
+        </div>
+    </div>
+  </main>
+
+  <script src="/static/stylist.js"></script>
+</body>
+</html>

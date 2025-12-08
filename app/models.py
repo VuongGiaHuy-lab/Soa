@@ -2,6 +2,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.sql import func # Import func để tự động lấy giờ
 import enum
 
 from .database import Base
@@ -10,9 +11,14 @@ class Role(str, enum.Enum):
     CUSTOMER = "customer"
     OWNER = "owner"
     STYLIST = "stylist"
-    GUEST = "guest"  # <-- Mới thêm
+    GUEST = "guest"
 
-class User(Base):
+# Helper Mixin để tái sử dụng created_at/updated_at
+class TimestampMixin:
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class User(Base, TimestampMixin):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
@@ -20,8 +26,7 @@ class User(Base):
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, default=Role.CUSTOMER.value)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
+    
     stylist_profile = relationship("Stylist", back_populates="user", uselist=False)
 
 class Stylist(Base):
@@ -30,15 +35,14 @@ class Stylist(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     bio: Mapped[str | None] = mapped_column(String)
-    
-    # Giờ làm việc linh hoạt
     start_hour: Mapped[int] = mapped_column(Integer, default=9)
     end_hour: Mapped[int] = mapped_column(Integer, default=20)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True) # Mới
 
     user = relationship("User", back_populates="stylist_profile")
     bookings = relationship("Booking", back_populates="stylist")
 
-class Service(Base):
+class Service(Base, TimestampMixin):
     __tablename__ = "services"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
@@ -55,19 +59,30 @@ class BookingStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     COMPLETED = "completed"
 
-class Booking(Base):
+class Booking(Base, TimestampMixin):
     __tablename__ = "bookings"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    
+    # Khách hàng
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     customer_name: Mapped[str | None] = mapped_column(String, nullable=True)
     customer_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    customer_phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    
+    # Dịch vụ & Stylist
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
     stylist_id: Mapped[int | None] = mapped_column(ForeignKey("stylists.id"), nullable=True)
+    
+    # Tài chính (Snapshot) - QUAN TRỌNG
+    service_price_snapshot: Mapped[float] = mapped_column(Float, nullable=False) # Giá gốc lúc đặt
+    total_amount: Mapped[float] = mapped_column(Float, nullable=False) # Tổng tiền phải trả
+    
+    # Thời gian
     start_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     end_time: Mapped[datetime] = mapped_column(DateTime, index=True)
+    
     status: Mapped[str] = mapped_column(String, default=BookingStatus.PENDING.value)
     is_walkin: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     service = relationship("Service", back_populates="bookings")
     stylist = relationship("Stylist", back_populates="bookings")
@@ -80,7 +95,7 @@ class PaymentStatus(str, enum.Enum):
 class Payment(Base):
     __tablename__ = "payments"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    booking_id: Mapped[int] = mapped_column(ForeignKey("bookings.id"), unique=True)
+    booking_id: Mapped[int] = mapped_column(ForeignKey("bookings.id"), unique=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     status: Mapped[str] = mapped_column(String, default=PaymentStatus.INITIATED.value)
     provider: Mapped[str | None] = mapped_column(String, nullable=True)

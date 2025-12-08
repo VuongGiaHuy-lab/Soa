@@ -1,10 +1,10 @@
-# app/routers/stylists.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from ..database import get_db
 from .. import schemas, models
 from ..deps import RequireOwner
+from ..auth import get_password_hash
 
 router = APIRouter(prefix="/stylists", tags=["stylists"])
 
@@ -13,22 +13,25 @@ def list_stylists(db: Session = Depends(get_db)):
     return db.query(models.Stylist).all()
 
 @router.post("/", response_model=schemas.StylistOut, dependencies=[Depends(RequireOwner)])
-def create_stylist(display_name: str, user_id: int, bio: str | None = None, start_hour: int = 9, end_hour: int = 20, db: Session = Depends(get_db)):
-    user = db.get(models.User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def create_stylist(payload: schemas.StylistCreateFull, db: Session = Depends(get_db)):
+    if db.query(models.User).filter(models.User.email == payload.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
     
-    existing = db.query(models.Stylist).filter(models.Stylist.user_id == user_id).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="User already has a stylist profile")
+    user = models.User(
+        email=payload.email,
+        hashed_password=get_password_hash(payload.password),
+        full_name=payload.full_name,
+        role=models.Role.STYLIST.value
+    )
+    db.add(user)
+    db.flush()
     
-    user.role = models.Role.STYLIST.value
     stylist = models.Stylist(
-        user_id=user_id, 
-        display_name=display_name, 
-        bio=bio,
-        start_hour=start_hour,
-        end_hour=end_hour
+        user_id=user.id,
+        display_name=payload.display_name,
+        bio=payload.bio,
+        start_hour=payload.start_hour,
+        end_hour=payload.end_hour
     )
     db.add(stylist)
     db.commit()
@@ -58,7 +61,6 @@ def delete_stylist(stylist_id: int, db: Session = Depends(get_db)):
     if stylist.bookings:
         raise HTTPException(status_code=400, detail="Cannot delete stylist with existing bookings. Delete bookings first.")
 
-    # Reset role user về Customer nếu muốn, hoặc giữ nguyên
     user = stylist.user
     if user:
         user.role = models.Role.CUSTOMER.value
