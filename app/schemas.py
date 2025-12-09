@@ -1,4 +1,4 @@
-# app/schemas.py
+
 from datetime import datetime, date, time
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
@@ -123,3 +123,5 @@ class PaymentOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+class EmailIn(BaseModel):
+    email: EmailStr

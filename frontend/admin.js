@@ -1,13 +1,11 @@
-// --- 1. SECURITY CHECK (Chạy ngay lập tức) ---
 (function checkAdminAccess(){
     const t = localStorage.getItem('token');
     if(!t) {
-        window.location.href = '/auth'; // Chưa đăng nhập -> Về trang Auth
+        window.location.href = '/auth'; 
         return;
     }
     
     try {
-        // Giải mã JWT Payload để lấy role
         const base64Url = t.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
@@ -19,7 +17,7 @@
         // Kiểm tra Role
         if(payload.role !== 'owner') {
             alert('Access Denied: You do not have permission to view this page.');
-            window.location.href = '/'; // Không phải Owner -> Về trang chủ
+            window.location.href = '/'; 
         }
     } catch(e) {
         console.error("Invalid token", e);
@@ -28,7 +26,6 @@
     }
 })();
 
-// --- 2. CONFIG & HELPERS ---
 const API = document.getElementById('apiBase') ? document.getElementById('apiBase').value : 'http://localhost:8000';
 function token(){ return localStorage.getItem('token'); }
 
@@ -41,7 +38,6 @@ function showToast(message, type = 'success') {
     document.body.appendChild(toast);
   }
   
-  // Set color
   toast.className = 'toast';
   if(type === 'success') toast.style.backgroundColor = '#10b981';
   else if(type === 'error') toast.style.backgroundColor = '#ef4444';
@@ -52,7 +48,6 @@ function showToast(message, type = 'success') {
   setTimeout(() => { toast.classList.remove('show'); }, 3000);
 }
 
-// --- 3. SERVICES ---
 async function createService(evt){
   evt && evt.preventDefault();
   try {
@@ -72,7 +67,6 @@ async function createService(evt){
   } catch(e) { console.error(e); }
 }
 
-// --- 4. USERS ---
 async function listUsers(){
   try {
       const res = await fetch(API+"/admin/users", { headers:{ 'Authorization':'Bearer '+token() }});
@@ -81,9 +75,7 @@ async function listUsers(){
   } catch(e) { showToast("Error loading users", "error"); }
 }
 
-// --- 5. MANAGE STYLISTS (Add, List, Delete, Edit) ---
 
-// ADD NEW STYLIST (Tạo trực tiếp kèm tài khoản)
 async function createNewStylist(evt){
     evt && evt.preventDefault();
     const btn = evt.target.querySelector('button');
@@ -93,12 +85,10 @@ async function createNewStylist(evt){
 
     try {
         const payload = {
-            // Thông tin tài khoản User
             full_name: document.getElementById('newStFullName').value,
             email: document.getElementById('newStEmail').value,
             password: document.getElementById('newStPass').value,
             
-            // Thông tin Stylist
             display_name: document.getElementById('newStName').value,
             bio: document.getElementById('newStBio').value,
             start_hour: parseInt(document.getElementById('newStStart').value),
@@ -116,15 +106,12 @@ async function createNewStylist(evt){
 
         if(res.ok) {
             showToast("Stylist account created!", "success");
-            // Clear inputs
             document.getElementById('newStFullName').value = '';
             document.getElementById('newStEmail').value = '';
             document.getElementById('newStPass').value = '';
             document.getElementById('newStName').value = '';
             document.getElementById('newStBio').value = '';
-            // Refresh list
             loadManageStylists();
-            // Refresh users list too as we added a user
             listUsers();
         } else {
             const err = await res.json();
@@ -138,7 +125,6 @@ async function createNewStylist(evt){
     }
 }
 
-// LIST STYLISTS
 async function loadManageStylists(){
     try {
         const res = await fetch(API+"/stylists/");
@@ -156,7 +142,6 @@ async function loadManageStylists(){
             card.className = 'stylist-card';
             card.style.textAlign = 'left';
             
-            // Escape special chars
             const safeBio = (st.bio || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const safeName = st.display_name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
@@ -180,7 +165,6 @@ async function loadManageStylists(){
     }
 }
 
-// DELETE STYLIST
 async function deleteStylist(id){
     if(!confirm(`Delete Stylist #${id}? This will fail if they have existing bookings.`)) return;
     
@@ -200,7 +184,6 @@ async function deleteStylist(id){
     } catch(e) { showToast("Network error", "error"); }
 }
 
-// EDIT STYLIST MODAL
 function openEditModal(id, name, bio, start, end) {
     document.getElementById('editId').value = id;
     document.getElementById('editName').value = name;
@@ -264,7 +247,6 @@ async function submitEditStylist(evt) {
     }
 }
 
-// --- 6. MANAGE BOOKINGS ---
 async function loadAllBookings(){
   const out = document.getElementById('allBookingsTable');
   out.innerHTML = '<p class="text-muted">Loading...</p>';
@@ -333,7 +315,6 @@ async function deleteBooking(id){
     } catch(e) { showToast("Network error", "error"); }
 }
 
-// --- 7. WALK-IN POS FLOW ---
 let walkinService = null;
 let walkinStylist = null;
 let walkinSelectedStart = null;
@@ -477,12 +458,10 @@ async function createWalkin(evt){
   } catch(e) { showToast("Network error", "error"); }
 }
 
-// --- INIT ---
 document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('walkin-load-slots');
   if (btn) btn.addEventListener('click', loadWalkinSlots);
   
-  // Set default date to today
   const dateInput = document.getElementById('walkin-date');
   if (dateInput) {
       const today = new Date().toISOString().split('T')[0];

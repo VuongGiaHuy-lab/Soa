@@ -1,4 +1,4 @@
-# app/routers/bookings.py
+
 from datetime import datetime, timedelta, time, date as date_type
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
@@ -62,9 +62,7 @@ def create_booking(payload: schemas.BookingCreate, user=Depends(get_current_user
         if is_overlapping(db, payload.stylist_id, start, end):
             raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
             
-        # --- LOGIC TÍNH GIÁ MỚI ---
         current_price = svc.price
-        # --------------------------
 
         booking = models.Booking(
             customer_id=user.id,
@@ -74,8 +72,8 @@ def create_booking(payload: schemas.BookingCreate, user=Depends(get_current_user
             end_time=end,
             status=models.BookingStatus.PENDING.value,
             
-            service_price_snapshot=current_price, # <-- LƯU VẾT GIÁ
-            total_amount=current_price,          # <-- LƯU TỔNG TIỀN
+            service_price_snapshot=current_price, 
+            total_amount=current_price,         
         )
         db.add(booking)
         db.commit()
@@ -102,9 +100,7 @@ def create_guest_booking(payload: schemas.WalkinBookingCreate, db: Session = Dep
         if is_overlapping(db, payload.stylist_id, start, end):
             raise HTTPException(status_code=409, detail="Stylist is unavailable at this time")
             
-        # --- LOGIC TÍNH GIÁ MỚI ---
         current_price = svc.price
-        # --------------------------
 
         booking = models.Booking(
             customer_id=None, 
@@ -118,8 +114,8 @@ def create_guest_booking(payload: schemas.WalkinBookingCreate, db: Session = Dep
             status=models.BookingStatus.PENDING.value,
             is_walkin=False,
             
-            service_price_snapshot=current_price, # <-- LƯU VẾT GIÁ
-            total_amount=current_price,          # <-- LƯU TỔNG TIỀN
+            service_price_snapshot=current_price, 
+            total_amount=current_price,          
         )
         db.add(booking)
         db.commit()
@@ -147,9 +143,7 @@ def create_walkin(payload: schemas.WalkinBookingCreate, db: Session = Depends(ge
         if is_overlapping(db, payload.stylist_id, start, end):
             raise HTTPException(status_code=409, detail="Stylist is unavailable")
             
-        # --- LOGIC TÍNH GIÁ MỚI ---
         current_price = svc.price
-        # --------------------------
 
         booking = models.Booking(
             customer_id=None,
@@ -163,13 +157,12 @@ def create_walkin(payload: schemas.WalkinBookingCreate, db: Session = Depends(ge
             status=models.BookingStatus.CONFIRMED.value,
             is_walkin=True,
             
-            service_price_snapshot=current_price, # <-- LƯU VẾT GIÁ
-            total_amount=current_price,          # <-- LƯU TỔNG TIỀN
+            service_price_snapshot=current_price, 
+            total_amount=current_price,          
         )
         db.add(booking)
         db.flush()
 
-        # TỰ ĐỘNG TẠO PAYMENT (CASH)
         payment = models.Payment(
             booking_id=booking.id,
             amount=current_price,
@@ -230,7 +223,6 @@ def stylist_schedule(user=Depends(get_current_user), db: Session = Depends(get_d
         models.Booking.stylist_id == stylist.id
     ).order_by(models.Booking.start_time.desc()).all()
 
-# --- HELPER GỬI MAIL ---
 def send_confirmation_email(booking, payment, paid_amount, note, db, bg_tasks):
     recipient_email = booking.customer_email
     customer_name = booking.customer_name or "Valued Customer"
@@ -256,7 +248,6 @@ def send_confirmation_email(booking, payment, paid_amount, note, db, bg_tasks):
         )
         bg_tasks.add_task(send_email, recipient_email, "Booking Confirmed", body)
 
-# --- 1. PAY FULL (Online) ---
 @router.post("/{booking_id}/pay", response_model=schemas.PaymentOut)
 def pay_booking(
     booking_id: int, 
@@ -269,17 +260,14 @@ def pay_booking(
         if not booking:
             raise HTTPException(status_code=404, detail="Booking not found")
 
-        # Kiểm tra xem đã trả hết tiền chưa
         if booking.total_amount <= db.query(func.sum(models.Payment.amount)).filter(models.Payment.booking_id == booking_id, models.Payment.status == models.PaymentStatus.SUCCESS.value).scalar() or 0:
             raise HTTPException(status_code=400, detail="Booking already fully paid")
 
         if not luhn_checksum(payload.card_number) or not validate_expiry(payload.expiry_month, payload.expiry_year):
             raise HTTPException(status_code=400, detail="Invalid payment details")
 
-        # Lấy số tiền còn thiếu (để trả full)
         remaining_to_pay = booking.total_amount - (db.query(func.sum(models.Payment.amount)).filter(models.Payment.booking_id == booking_id, models.Payment.status == models.PaymentStatus.SUCCESS.value).scalar() or 0)
         
-        # Nếu payload.amount không khớp, ta sẽ lấy số tiền còn thiếu
         amount_to_charge = remaining_to_pay
 
         payment = models.Payment(
@@ -301,7 +289,6 @@ def pay_booking(
         db.rollback()
         raise e
 
-# --- 2. PAY DEPOSIT (Cọc 30%) ---
 @router.post("/{booking_id}/pay-deposit", response_model=schemas.PaymentOut)
 def pay_deposit(
     booking_id: int, 
@@ -314,18 +301,15 @@ def pay_deposit(
         if not booking:
             raise HTTPException(status_code=404, detail="Booking not found")
 
-        # Kiểm tra xem đã trả cọc/full rồi chưa
         if db.query(models.Payment).filter(models.Payment.booking_id == booking_id, models.Payment.status == models.PaymentStatus.SUCCESS.value).first():
             raise HTTPException(status_code=400, detail="Deposit/Full payment already received.")
 
         if not luhn_checksum(payload.card_number) or not validate_expiry(payload.expiry_month, payload.expiry_year):
             raise HTTPException(status_code=400, detail="Invalid payment details")
 
-        # Tính tiền cọc
         deposit_amount = round(booking.total_amount * DEPOSIT_PERCENTAGE, 2)
         remaining = round(booking.total_amount - deposit_amount, 2)
 
-        # Ghi nhận thanh toán CỌC
         payment = models.Payment(
             booking_id=booking.id, 
             amount=deposit_amount, 

@@ -48,7 +48,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Open docs at http://localhost:8000/docs
 
 ### Default owner account
-On first run, the app seeds an Owner account from env vars (ADMIN_EMAIL/ADMIN_PASSWORD). If not set, it falls back to owner@salon.local / Owner@12345.
+On first run, the app seeds an Owner account from env vars (ADMIN_EMAIL/ADMIN_PASSWORD). If not set, it falls back to owner@salon.local / owner@salon.local.
 
 ## Tests
 Run a quick smoke test:

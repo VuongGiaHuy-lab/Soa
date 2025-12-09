@@ -1,7 +1,6 @@
 const API = 'http://localhost:8000';
 const token = localStorage.getItem('token');
 
-// 1. Security Check
 if(!token) window.location.href = '/auth';
 
 try {
@@ -11,8 +10,6 @@ try {
         window.location.href = '/';
     }
 } catch(e) { window.location.href = '/auth'; }
-
-// 2. Load Schedule
 async function loadSchedule() {
     const container = document.getElementById('scheduleTable');
     container.innerHTML = '<p class="text-muted">Updating...</p>';

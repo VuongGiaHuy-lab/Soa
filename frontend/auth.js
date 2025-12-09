@@ -23,7 +23,6 @@ async function login(evt){
             const json = JSON.parse(txt);
             localStorage.setItem('token', json.access_token);
             
-            // --- LOGIC ĐIỀU HƯỚNG MỚI ---
             const payload = JSON.parse(atob(json.access_token.split('.')[1]));
             const role = payload.role;
 

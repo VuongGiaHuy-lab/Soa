@@ -40,7 +40,6 @@ async function loadStylists(){
     return;
   }
   if (!Array.isArray(data)) {
-    // handle alternative envelope shapes
     data = data.items || data.results || [];
   }
   const wrap = document.getElementById('stylistList');

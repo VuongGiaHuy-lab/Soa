@@ -38,7 +38,6 @@ def register(
         raise HTTPException(status_code=400, detail="Email already registered")
     db.refresh(user)
 
-    # --- SỬA ĐỔI: Gửi email chào mừng cho KHÁCH HÀNG ---
     subject = "Welcome to Salon Luxury! 🎉"
     body = (
         f"Hi {user.full_name or 'Friend'},\n\n"
@@ -46,9 +45,7 @@ def register(
         f"You can now log in to book appointments and track your history.\n\n"
         f"Best regards,\nSalon Luxury Team"
     )
-    # Gửi đến chính email của user vừa đăng ký
     background_tasks.add_task(send_email, user.email, subject, body)
-    # ---------------------------------------------------
 
     return user
 
@@ -74,8 +71,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": token, "token_type": "bearer"}
 
 @router.post("/forgot-password")
-def forgot_password(email_in: str = Body(..., embed=True), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == email_in).first()
+def forgot_password(payload: schemas.EmailIn, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
+
     if not user:
         return {"msg": "If your email is registered, you will receive a reset link."}
     
@@ -85,11 +83,9 @@ def forgot_password(email_in: str = Body(..., embed=True), db: Session = Depends
     )
     link = f"http://localhost:8000/frontend/reset-password.html?token={reset_token}"
     
-    # Gửi link reset pass cho khách hàng
     send_email(user.email, "Password Reset Request", f"Click here to reset your password: {link}")
     
     return {"msg": "Email sent"}
-
 @router.post("/reset-password")
 def reset_password(token: str = Body(...), new_password: str = Body(...), db: Session = Depends(get_db)):
     payload = decode_token(token)

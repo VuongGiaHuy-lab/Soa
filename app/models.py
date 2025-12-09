@@ -1,4 +1,4 @@
-# app/models.py
+
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -13,7 +13,6 @@ class Role(str, enum.Enum):
     STYLIST = "stylist"
     GUEST = "guest"
 
-# Helper Mixin để tái sử dụng created_at/updated_at
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -63,21 +62,17 @@ class Booking(Base, TimestampMixin):
     __tablename__ = "bookings"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     
-    # Khách hàng
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     customer_name: Mapped[str | None] = mapped_column(String, nullable=True)
     customer_email: Mapped[str | None] = mapped_column(String, nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String, nullable=True)
     
-    # Dịch vụ & Stylist
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
     stylist_id: Mapped[int | None] = mapped_column(ForeignKey("stylists.id"), nullable=True)
     
-    # Tài chính (Snapshot) - QUAN TRỌNG
-    service_price_snapshot: Mapped[float] = mapped_column(Float, nullable=False) # Giá gốc lúc đặt
-    total_amount: Mapped[float] = mapped_column(Float, nullable=False) # Tổng tiền phải trả
+    service_price_snapshot: Mapped[float] = mapped_column(Float, nullable=False) 
+    total_amount: Mapped[float] = mapped_column(Float, nullable=False) 
     
-    # Thời gian
     start_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     end_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     

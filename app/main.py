@@ -1,4 +1,4 @@
-# app/main.py
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse, RedirectResponse
@@ -18,11 +18,9 @@ Base.metadata.create_all(bind=engine)
 
 @app.on_event("startup")
 def seed_data():
-    # Import Models bên trong hàm để tránh lỗi vòng lặp
     from .models import User, Role, Stylist, Service
     
     with SessionLocal() as db:
-        # 1. TẠO OWNER (ADMIN)
         admin_email = settings.ADMIN_EMAIL
         admin_password = settings.ADMIN_PASSWORD
         user = db.query(User).filter(User.email == admin_email).first()
@@ -36,15 +34,10 @@ def seed_data():
             db.add(user)
             db.commit()
         else:
-            # Đảm bảo quyền luôn là Owner
             user.role = Role.OWNER.value
             db.commit()
-        
-        # 2. TẠO STYLIST MẶC ĐỊNH (Nếu chưa có)
         has_stylist = db.query(Stylist).count() > 0
         if not has_stylist:
-            # Lấy user vừa tạo/tìm thấy ở trên để làm stylist mẫu
-            # Lưu ý: Trong thực tế nên tạo user riêng, nhưng để demo thì dùng tạm
             try:
                 st = Stylist(
                     user_id=user.id, 
@@ -56,9 +49,8 @@ def seed_data():
                 db.add(st)
                 db.commit()
             except:
-                pass # Bỏ qua nếu user.id đã có trong bảng stylists (Unique constraint)
+                pass 
 
-        # 3. TẠO 3 DỊCH VỤ MẪU (SERVICES) <-- PHẦN MỚI THÊM
         sample_services = [
             {
                 "name": "Women's Haircut",
@@ -81,13 +73,12 @@ def seed_data():
         ]
 
         for svc_data in sample_services:
-            # Kiểm tra xem dịch vụ đã tồn tại chưa (dựa theo tên)
             exists = db.query(Service).filter(Service.name == svc_data["name"]).first()
             if not exists:
                 new_svc = Service(**svc_data)
                 db.add(new_svc)
         
-        db.commit() # Lưu tất cả dịch vụ mới
+        db.commit()
 
 app.include_router(auth_router.router)
 app.include_router(services_router.router)
@@ -107,7 +98,6 @@ app.add_middleware(
 def root():
     return FileResponse("frontend/index.html")
 
-# Frontend routes
 @app.get("/auth")
 def page_auth():
     return FileResponse("frontend/auth.html")

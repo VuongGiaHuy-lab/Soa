@@ -24,7 +24,6 @@ def mask_card(card_number: str) -> str:
 def validate_expiry(month: int, year: int) -> bool:
     if month < 1 or month > 12:
         return False
-    # assume year is yyyy
     now = datetime.utcnow()
     if year < now.year or (year == now.year and month < now.month):
         return False

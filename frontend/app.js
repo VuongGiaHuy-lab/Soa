@@ -10,7 +10,6 @@ if(token) {
 
 function api() { return API; }
 
-// --- NAV & GUARD ---
 (function(){
   const links = document.querySelectorAll('[data-view]');
   const views = document.querySelectorAll('.view');
@@ -56,7 +55,6 @@ function updateUI() {
     }
 }
 
-// --- INIT ---
 function enableGuestMode() {
     isGuestMode=true; token=null; localStorage.removeItem('token'); userRole=null; updateUI();
     document.getElementById('guestFields').style.display='block';
@@ -75,7 +73,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dateInput = document.getElementById('bkSelectDate'); if(dateInput) dateInput.value = new Date().toISOString().split('T')[0];
 });
 
-// --- BOOKING ---
 async function populateBookingDropdowns() {
     try {
         const resSvc = await fetch(api()+"/services/"); const services = await resSvc.json();
@@ -174,7 +171,6 @@ async function createUserBookingLogic() {
     } catch(e) { showToast("Error", "error"); }
 }
 
-// --- PAYMENTS ---
 function preparePayment(id) {
     document.querySelector('a[href="#my-bookings"]').click();
     setTimeout(() => {
